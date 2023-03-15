@@ -43,13 +43,28 @@ const char PALETTE[33] = {
 #define TILE 0xd8
 #define ATTR 0
 
+
 // define a 2x2 metasprite
-const unsigned char metasprite[]={
-        0,      0,      TILE+0,   ATTR, 
-        0,      8,      TILE+1,   ATTR, 
-        8,      0,      TILE+2,   ATTR, 
-        8,      8,      TILE+3,   ATTR, 
+#define DEF_METASPRITE_2x2(name,code,pal)\
+const unsigned char name[]={\
+        0,      0,      (code)+0,   pal, \
+        0,      8,      (code)+1,   pal, \
+        8,      0,      (code)+2,   pal, \
+        8,      8,      (code)+3,   pal, \
         128};
+
+// define a 2x2 metasprite, flipped horizontally
+#define DEF_METASPRITE_2x2_FLIP(name,code,pal)\
+const unsigned char name[]={\
+        8,      0,      (code)+0,   (pal)|OAM_FLIP_H, \
+        8,      8,      (code)+1,   (pal)|OAM_FLIP_H, \
+        0,      0,      (code)+2,   (pal)|OAM_FLIP_H, \
+        0,      8,      (code)+3,   (pal)|OAM_FLIP_H, \
+        128};
+
+
+DEF_METASPRITE_2x2(char1right,0xd8,true);
+DEF_METASPRITE_2x2_FLIP(char1left,0xd8,true);
 
 void p(byte type, byte x, byte y, byte len)
 {
@@ -61,10 +76,11 @@ void p(byte type, byte x, byte y, byte len)
   vram_fill(0x06, 1);
 }
 
-#define NUM_ACTORS 1
+#define NUM_ACTORS 2
 
 byte actor_x[NUM_ACTORS];
 byte actor_y[NUM_ACTORS];
+void *actor_sprite[NUM_ACTORS];
 
 // main function, run after console reset
 void main(void) {
@@ -74,7 +90,12 @@ void main(void) {
   // Place the player
   actor_x[0]=60;
   actor_y[0]=143;
+  actor_sprite[0]=&char1right;
   
+  // Place the bot
+  actor_x[1]=128;
+  actor_y[1]=99;
+  actor_sprite[1]=&char1left;
   
   // Draw bg fades
   vram_adr(NAMETABLE_A);
@@ -108,11 +129,29 @@ void main(void) {
   while (1) {
     char i; // actor index
     char oam_id; // sprite ID
+    
+    // Controls
+    char pad;
+    pad = pad_poll(0);
+    if(pad & PAD_LEFT)
+    {
+    	actor_x[0]-= 1;
+        actor_sprite[0]=&char1left;
+    }
+    else if(pad & PAD_RIGHT)
+    {
+    	actor_x[0]+= 1;
+        actor_sprite[0]=&char1right;
+    }
+    
+    // Update Sprites
+    
+
     // start with OAMid/sprite 0
     oam_id = 0;
     // draw and move all actors
     for (i=0; i<NUM_ACTORS; i++) {
-      oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, metasprite);
+      oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, actor_sprite[i]);
       //actor_x[i] += actor_dx[i];
       //actor_y[i] += actor_dy[i];
     }
@@ -120,6 +159,8 @@ void main(void) {
     // if we haven't wrapped oam_id around to 0
     if (oam_id!=0) oam_hide_rest(oam_id);
     // wait for next frame
+    
+    
     ppu_wait_frame();
   }
 }
