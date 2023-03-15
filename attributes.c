@@ -22,19 +22,27 @@ const char ATTRIBUTE_TABLE[0x40] = {
 };
 
 /*{pal:"nes",layout:"nes"}*/
-const char PALETTE[16] = { 
+const char PALETTE[33] = { 
   0x1C,			// screen color
 
   0x0F,0x17,0x10,0x00,	// background palette 0
   0x0F,0x07,0x2D,0x00,	// background palette 1
   0x0F,0x13,0x10,0x00,	// background palette 2
-  0x0F,0x16,0x10        // background palette 3
+  0x0F,0x16,0x10,0x00,       // background palette 3
+    
+  0x0D,0x35,0x20,0x00,	// sprite palette 0
+  0x0D,0x37,0x20,0x00,	// sprite palette 1
+  0x0D,0x2D,0x20,0x00,	// sprite palette 2
+  0x0D,0x27,0x20,0x00	// sprite palette 3
+
 };
 
-/*void p(int x, int y)
+void p(byte type, byte x, byte y, byte len)
 {
-
-}*/
+  vram_adr(NTADR_A(x,y));
+  vram_fill(0x90+type, len);
+  
+}
 
 // main function, run after console reset
 void main(void) {
@@ -45,10 +53,15 @@ void main(void) {
   //vram_adr(NAMETABLE_A);	// start address ($2000)
   //vram_fill(0x80, 32*30);	// fill nametable (960 bytes)
   
-  vram_adr(NTADR_A(20,15));
-  vram_fill(0x90, 500);
+  //vram_adr(NTADR_A(20,15));
+  //vram_fill(0x90, 500);
   
-  vram_adr(NTADR_A(32,30));
+  p(0,8,20,16);
+  p(1,10,17,4);
+  p(1,18,17,4);
+  p(1,14,14,4);
+  
+  vram_adr(0x23C0);
   
   // copy attribute table from PRG ROM to VRAM
   vram_write(ATTRIBUTE_TABLE, sizeof(ATTRIBUTE_TABLE));
