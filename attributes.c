@@ -78,9 +78,13 @@ void p(byte type, byte x, byte y, byte len)
 
 #define NUM_ACTORS 2
 
-byte actor_x[NUM_ACTORS];
+byte actor_x[NUM_ACTORS];      // Position
 byte actor_y[NUM_ACTORS];
-void *actor_sprite[NUM_ACTORS];
+byte actor_xf[NUM_ACTORS];     // Fraction
+byte actor_yf[NUM_ACTORS];
+short int actor_speedx[NUM_ACTORS]; // Speed
+short int actor_speedy[NUM_ACTORS];
+void *actor_sprite[NUM_ACTORS];// Which sprite to show
 
 // main function, run after console reset
 void main(void) {
@@ -90,11 +94,19 @@ void main(void) {
   // Place the player
   actor_x[0]=60;
   actor_y[0]=143;
+  actor_xf[0]=0;
+  actor_yf[0]=0;
+  actor_speedx[0]=0;
+  actor_speedy[0]=0;
   actor_sprite[0]=&char1right;
   
   // Place the bot
   actor_x[1]=128;
-  actor_y[1]=99;
+  actor_y[1]=99;  
+  actor_xf[1]=0;
+  actor_yf[1]=0;
+  actor_speedx[1]=0;
+  actor_speedy[1]=0;
   actor_sprite[1]=&char1left;
   
   // Draw bg fades
@@ -133,19 +145,85 @@ void main(void) {
     // Controls
     char pad;
     pad = pad_poll(0);
+    
+    // Implement direct control of physics based on controller.
+    // Todo: Create actor state manager.
     if(pad & PAD_LEFT)
     {
-    	actor_x[0]-= 1;
+    	actor_speedx[0] = -100*2; // 100 probably maps to speed 1.5, which is pretty fast for walk. M ranges 0.65 to 1.6
         actor_sprite[0]=&char1left;
     }
     else if(pad & PAD_RIGHT)
     {
-    	actor_x[0]+= 1;
+    	actor_speedx[0]= 100*2;
         actor_sprite[0]=&char1right;
     }
+    else
+    {
+      // this should be only in ground state
+      actor_speedx[0]= actor_speedx[0]*4/5;
+    }
+    if(pad & PAD_A)
+    {
+      actor_speedy[0] = -1000; // Around 2.2m jump
+    }
+    else
+    {
+      actor_speedy[0] +=100;
+      actor_speedy[0] = MIN(actor_speedy[0],2900);
+    }
+    
+    
+    
+    // Actor Physics
+    
+    for (i=0; i<NUM_ACTORS; i++) {
+
+      short int actorxf;
+      short int actoryf;
+      actorxf = actor_xf[i]+actor_speedx[i];
+      actoryf = actor_yf[i]+actor_speedy[i];
+      // TODO: no loops here.
+      while(actorxf>=255)
+      {
+        actor_x[i] +=1;
+        actorxf-=0xff;
+      }
+      while(actorxf<0)
+      {
+        actor_x[i] -=1;
+        actorxf+=0xff;
+      }
+      
+      while(actoryf>=255)
+      {
+        actor_y[i] +=1;
+        actoryf-=0xff;
+      }
+      while(actoryf<0)
+      {
+        actor_y[i] -=1;
+        actoryf+=0xff;
+      }
+      
+      actor_xf[i] = actorxf;
+      actor_yf[i] = actoryf;
+      
+      // Collisions
+      if(actor_y[i]>143)
+      {
+        actor_y[i] = 143;
+        actor_speedy[i] = 0;
+        actor_yf[i] = 0;
+      }
+      
+      
+    }
+    
+    
+    
     
     // Update Sprites
-    
 
     // start with OAMid/sprite 0
     oam_id = 0;
