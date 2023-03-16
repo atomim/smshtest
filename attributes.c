@@ -76,7 +76,21 @@ void p(byte type, byte x, byte y, byte len)
   vram_fill(0x06, 1);
 }
 
+struct state{
+  bool on_ground;
+  byte jump_crouch_frames;
+  byte jump_air_frames;
+};
+
+struct platform{
+  byte x1;
+  byte x2;
+  byte y;
+  byte type;
+};
+
 #define NUM_ACTORS 2
+#define NUM_PLATFORMS 4
 
 byte actor_x[NUM_ACTORS];      // Position
 byte actor_y[NUM_ACTORS];
@@ -85,6 +99,20 @@ byte actor_yf[NUM_ACTORS];
 short int actor_speedx[NUM_ACTORS]; // Speed
 short int actor_speedy[NUM_ACTORS];
 void *actor_sprite[NUM_ACTORS];// Which sprite to show
+struct state actor_state[NUM_ACTORS];
+
+struct platform platforms[NUM_PLATFORMS];
+
+byte p_count=0;
+
+void addp(byte type, byte x, byte y, byte len)
+{
+  platforms[p_count].x1=x;
+    platforms[p_count].x2=x+len;
+    platforms[p_count].y=y;
+    platforms[p_count].type=type;
+    ++p_count;
+}
 
 // main function, run after console reset
 void main(void) {
@@ -92,12 +120,12 @@ void main(void) {
   pal_all(PALETTE);
 
   // Place the player
-  actor_x[0]=60;
+  actor_x[0]=54;
   actor_y[0]=143;
   actor_xf[0]=0;
   actor_yf[0]=0;
   actor_speedx[0]=0;
-  actor_speedy[0]=0;
+  actor_speedy[0]=-1200;
   actor_sprite[0]=&char1right;
   
   // Place the bot
@@ -124,10 +152,10 @@ void main(void) {
   
   
   // Draw platforms BG
-  p(0,8,20,16);
-  p(1,10,17,4);
-  p(1,18,17,4);
-  p(1,14,14,4);
+  p(0,8,20,16);addp(0,8,20,16);
+  p(1,10,17,4);addp(1,10,17,4);
+  p(1,18,17,4);addp(1,18,17,4);
+  p(1,14,14,4);addp(1,14,14,4);
   
   // Set BG colors
   vram_adr(0x23C0);
@@ -139,7 +167,7 @@ void main(void) {
 
   // infinite loop
   while (1) {
-    char i; // actor index
+    char i, j; // actor index
     char oam_id; // sprite ID
     
     // Controls
@@ -163,17 +191,17 @@ void main(void) {
       // this should be only in ground state
       actor_speedx[0]= actor_speedx[0]*4/5;
     }
-    if(pad & PAD_A)
+    if(actor_state[0].on_ground == true && ((pad & PAD_A )|| rand()%30==5))
     {
       actor_speedy[0] = -1000; // Around 2.2m jump
     }
     else
     {
       actor_speedy[0] +=100;
-      actor_speedy[0] = MIN(actor_speedy[0],2900);
+      actor_speedy[0] = MIN(actor_speedy[0],2900/2);
     }
     
-    
+    if(pad==0)actor_speedx[0]=500;
     
     // Actor Physics
     
@@ -210,11 +238,27 @@ void main(void) {
       actor_yf[i] = actoryf;
       
       // Collisions
-      if(actor_y[i]>143)
+      //if(actor_y[i]>143)
+      //{
+      //  actor_y[i] = 143;
+      //  actor_speedy[i] = 0;
+      //  actor_yf[i] = 0;
+      //}
+      actor_state[i].on_ground = false;
+      for(j=0;j<p_count;++j)
       {
-        actor_y[i] = 143;
-        actor_speedy[i] = 0;
-        actor_yf[i] = 0;
+        if(actor_speedy[i] >= 0
+           && actor_y[i]+17>=platforms[j].y*8+4*(platforms[j].type==1)
+           && actor_y[i]+17<=platforms[j].y*8+8
+           && actor_x[i]+8>platforms[j].x1*8
+           && actor_x[i]+8<platforms[j].x2*8
+          )
+        {
+          actor_y[i] = platforms[j].y*8-17+4*(platforms[j].type==1);
+          actor_speedy[i] = 0;
+          actor_yf[i] = 0;
+          actor_state[i].on_ground = true;
+        }
       }
       
       
@@ -229,6 +273,7 @@ void main(void) {
     oam_id = 0;
     // draw and move all actors
     for (i=0; i<NUM_ACTORS; i++) {
+      // TODO: add camera
       oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, actor_sprite[i]);
       //actor_x[i] += actor_dx[i];
       //actor_y[i] += actor_dy[i];
