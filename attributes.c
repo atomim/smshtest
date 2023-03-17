@@ -125,7 +125,7 @@ void main(void) {
   actor_xf[0]=0;
   actor_yf[0]=0;
   actor_speedx[0]=0;
-  actor_speedy[0]=-1200;
+  actor_speedy[0]=-600;
   actor_sprite[0]=&char1right;
   
   // Place the bot
@@ -191,17 +191,20 @@ void main(void) {
       // this should be only in ground state
       actor_speedx[0]= actor_speedx[0]*4/5;
     }
-    if(actor_state[0].on_ground == true && ((pad & PAD_A )|| rand()%30==5))
+    if(actor_state[0].on_ground == true && ((pad & PAD_A )|| rand()%25==5))
     {
-      actor_speedy[0] = -1000; // Around 2.2m jump
+      actor_speedy[0] = -600; // Around 2.2m jump
     }
     else
     {
-      actor_speedy[0] +=100;
-      actor_speedy[0] = MIN(actor_speedy[0],2900/2);
+      actor_speedy[0] +=30;
+      actor_speedy[0] = MIN(actor_speedy[0],420);
     }
     
-    if(pad==0)actor_speedx[0]=500;
+    if(pad==0)actor_speedx[0]=200;
+    
+    
+    
     
     // Actor Physics
     
@@ -248,7 +251,7 @@ void main(void) {
       for(j=0;j<p_count;++j)
       {
         if(actor_speedy[i] >= 0
-           && actor_y[i]+17>=platforms[j].y*8+4*(platforms[j].type==1)
+           && actor_y[i]+17>=platforms[j].y*8-(actor_speedy[i]>>8)+4*(platforms[j].type==1)
            && actor_y[i]+17<=platforms[j].y*8+8
            && actor_x[i]+8>platforms[j].x1*8
            && actor_x[i]+8<platforms[j].x2*8
