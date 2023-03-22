@@ -80,6 +80,17 @@ struct state{
   bool on_ground;
   byte jump_crouch_frames;
   byte jump_air_frames;
+  byte double_jumps_left;
+};
+
+struct params{
+  short int jump_force;
+  short int run_speed;
+  byte double_jumps;
+  byte jump_crouch_frames;
+  short int fall_force;
+  short int fall_limit;
+  short int fast_fall_limit;
 };
 
 struct platform{
@@ -194,16 +205,27 @@ void main(void) {
     if(actor_state[0].on_ground == true && ((pad & PAD_A )|| rand()%25==5))
     {
       actor_speedy[0] = -600; // Around 2.2m jump
+      actor_state[0].double_jumps_left=1;
+    }
+    else if(actor_state[0].double_jumps_left > 0 && ((pad & PAD_A )|| rand()%25==5))
+    {
+      actor_speedy[0] = -600;
+      actor_state[0].double_jumps_left-=1;
     }
     else
     {
       actor_speedy[0] +=30;
       actor_speedy[0] = MIN(actor_speedy[0],420);
+      actor_speedy[1] +=30;
+      actor_speedy[1] = MIN(actor_speedy[1],420);
     }
     
     if(pad==0)actor_speedx[0]=200;
     
-    
+    if(actor_state[1].on_ground == true && ((rand()%25==5)))
+    {
+      actor_speedy[1] = -600; // Around 2.2m jump
+    }
     
     
     // Actor Physics
