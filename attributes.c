@@ -40,7 +40,7 @@ const char PALETTE[33] = {
 
 };
 
-#define TILE 0xd8
+
 #define ATTR 0
 
 
@@ -79,8 +79,20 @@ void p(byte type, byte x, byte y, byte len)
 struct state{
   bool on_ground;
   byte jump_crouch_frames;
-  byte jump_air_frames;
+  //byte jump_air_frames;
+  byte walk_frames;
+  byte dash_frames;
+  byte running;
   byte double_jumps_left;
+};
+struct intent{
+  bool left;
+  bool right;
+  bool jump;
+  //bool short_jump; // Cancel jump by releasing during crouch.
+  //bool double_jump;
+  bool dash;
+  bool fast_fall;
 };
 
 struct params{
@@ -111,7 +123,7 @@ short int actor_speedx[NUM_ACTORS]; // Speed
 short int actor_speedy[NUM_ACTORS];
 void *actor_sprite[NUM_ACTORS];// Which sprite to show
 struct state actor_state[NUM_ACTORS];
-
+struct intent actor_intent[NUM_PLATFORMS];
 struct platform platforms[NUM_PLATFORMS];
 
 byte p_count=0;
@@ -125,8 +137,43 @@ void addp(byte type, byte x, byte y, byte len)
     ++p_count;
 }
 
+void reset_level_and_bg()
+{
+  // Draw bg fades
+  vram_adr(NAMETABLE_A);
+  vram_fill(0x04, 96); // Sky
+  vram_fill(0x05, 96);
+  vram_adr(NTADR_A(0,22));
+  vram_fill(0x07, 10);  // Bottom left 1
+  vram_fill(0x04, 12);  // Bottom center 1
+  vram_fill(0x07, 9);   // Bottom right 1
+  vram_fill(0x08, 11);  // Bottom left 2
+  vram_fill(0x04, 12);  // Bottom center 2
+  vram_fill(0x08, 11);  // Bottom right 2
+  vram_fill(0x04, 32*5);// Bottom dark
+  
+  // reset platforms count
+  p_count = 0;
+  
+  // Draw platforms BG
+  p(0,8,20,16);addp(0,8,20,16);
+  p(1,10,17,4);addp(1,10,17,4);
+  p(1,18,17,4);addp(1,18,17,4);
+  p(1,14,14,4);addp(1,14,14,4);
+  
+  // Set BG colors
+  vram_adr(0x23C0);
+  // copy attribute table from PRG ROM to VRAM
+  vram_write(ATTRIBUTE_TABLE, sizeof(ATTRIBUTE_TABLE));
+
+}
+
 // main function, run after console reset
 void main(void) {
+  char pad = 0;
+  char last_pad = 0;
+  bool demo_mode_on = true;
+  
   // set background palette colors
   pal_all(PALETTE);
 
@@ -148,30 +195,15 @@ void main(void) {
   actor_speedy[1]=0;
   actor_sprite[1]=&char1left;
   
-  // Draw bg fades
-  vram_adr(NAMETABLE_A);
-  vram_fill(0x04, 96); // Sky
-  vram_fill(0x05, 96);
-  vram_adr(NTADR_A(0,22));
-  vram_fill(0x07, 10);  // Bottom left 1
-  vram_fill(0x04, 12);  // Bottom center 1
-  vram_fill(0x07, 9);   // Bottom right 1
-  vram_fill(0x08, 11);  // Bottom left 2
-  vram_fill(0x04, 12);  // Bottom center 2
-  vram_fill(0x08, 11);  // Bottom right 2
-  vram_fill(0x04, 32*5);// Bottom dark
+  // Draw bg and set platforms data.
+  reset_level_and_bg();
   
-  
-  // Draw platforms BG
-  p(0,8,20,16);addp(0,8,20,16);
-  p(1,10,17,4);addp(1,10,17,4);
-  p(1,18,17,4);addp(1,18,17,4);
-  p(1,14,14,4);addp(1,14,14,4);
-  
-  // Set BG colors
-  vram_adr(0x23C0);
-  // copy attribute table from PRG ROM to VRAM
-  vram_write(ATTRIBUTE_TABLE, sizeof(ATTRIBUTE_TABLE));
+  //
+  if (demo_mode_on)
+  {
+    vram_adr(NTADR_A(1,26));
+    vram_write("Press START to stop Demo mode.", 30);
+  }
 
   // enable PPU rendering (turn on screen)
   ppu_on_all();
@@ -182,49 +214,118 @@ void main(void) {
     char oam_id; // sprite ID
     
     // Controls
-    char pad;
+    last_pad = pad;
     pad = pad_poll(0);
     
-    // Implement direct control of physics based on controller.
-    // Todo: Create actor state manager.
-    if(pad & PAD_LEFT)
+    // Disable demo mode
+    if(demo_mode_on && pad & PAD_START)
     {
-    	actor_speedx[0] = -100*2; // 100 probably maps to speed 1.5, which is pretty fast for walk. M ranges 0.65 to 1.6
-        actor_sprite[0]=&char1left;
-    }
-    else if(pad & PAD_RIGHT)
-    {
-    	actor_speedx[0]= 100*2;
-        actor_sprite[0]=&char1right;
-    }
-    else
-    {
-      // this should be only in ground state
-      actor_speedx[0]= actor_speedx[0]*4/5;
-    }
-    if(actor_state[0].on_ground == true && ((pad & PAD_A )|| rand()%25==5))
-    {
-      actor_speedy[0] = -600; // Around 2.2m jump
-      actor_state[0].double_jumps_left=1;
-    }
-    else if(actor_state[0].double_jumps_left > 0 && ((pad & PAD_A )|| rand()%25==5))
-    {
-      actor_speedy[0] = -600;
-      actor_state[0].double_jumps_left-=1;
-    }
-    else
-    {
-      actor_speedy[0] +=30;
-      actor_speedy[0] = MIN(actor_speedy[0],420);
-      actor_speedy[1] +=30;
-      actor_speedy[1] = MIN(actor_speedy[1],420);
+      ppu_wait_frame();
+      ppu_off();
+      reset_level_and_bg();
+      ppu_on_all();
+      //ppu_wait_frame();
+      demo_mode_on=false;
     }
     
-    if(pad==0)actor_speedx[0]=200;
+    // Control of player 1 intent based on controller.
     
-    if(actor_state[1].on_ground == true && ((rand()%25==5)))
+    if(demo_mode_on)
     {
-      actor_speedy[1] = -600; // Around 2.2m jump
+      actor_intent[0].right=true;
+      if(rand()%25==5)
+      {
+        actor_intent[0].jump = true;
+      }
+      
+    } 
+    else
+    {
+      // Reset left/right.
+      actor_intent[0].left = false;
+      actor_intent[0].right = false;
+      if(pad & PAD_LEFT)
+      {
+          actor_intent[0].left = true;
+          actor_sprite[0]=&char1left;
+      }
+      else if(pad & PAD_RIGHT)
+      {
+          actor_intent[0].right = true;
+          actor_sprite[0]=&char1right;
+      }
+      
+      // Jump / cancel jump when stat changes. Let simulation update consume intent in between.
+      if((pad & PAD_A )==true && ((last_pad & PAD_A ) ==false))
+      {
+      	actor_intent[0].jump = true;
+      }
+      if((pad & PAD_A )==false && ((last_pad & PAD_A ) ==true))
+      {
+      	actor_intent[0].jump = false;
+      }
+    }
+    
+    // Simulate player 2 (not affected by demo mode)
+    if((rand()%25==5))
+    {
+      actor_intent[1].jump = true;
+    }
+    
+    // Actor State and intent physics
+    for (i=0; i<NUM_ACTORS; i++) 
+    {
+      if (actor_intent[i].left)
+      { 
+         actor_speedx[i]=-200;
+      }
+      else if (actor_intent[i].right)
+      {
+        actor_speedx[i]=200;
+      }
+      
+      if (actor_state[i].on_ground == false) // on air
+      {
+        // Fall speed
+      	actor_speedy[i] +=30;
+        actor_speedy[i] = MIN(actor_speedy[i],420);
+        
+        if(actor_intent[i].jump)
+        {
+          if(actor_state[i].double_jumps_left>0)
+          {
+            actor_speedy[i] = -600;
+            actor_state[i].double_jumps_left-=1;
+          }
+          actor_intent[i].jump = false;
+        }
+      }
+      else // on ground
+      {
+        // Always reset double jump frames on ground.
+        actor_state[i].double_jumps_left=1;
+        if(actor_intent[i].jump)
+        {
+          actor_state[i].jump_crouch_frames++;
+          if (actor_state[i].jump_crouch_frames>5)
+          {
+            // Do normal jump
+            actor_speedy[i] = -600;
+            actor_intent[i].jump = false;
+            actor_state[i].jump_crouch_frames = 0;
+          }
+        }
+        else if (actor_state[i].jump_crouch_frames>0) // Do short jump when cancelling jump early
+        {
+          actor_speedy[i] = -300;
+          actor_intent[i].jump = false;
+          actor_state[i].jump_crouch_frames = 0;
+        }
+      }
+      
+      // Inertia
+      actor_speedx[i]= actor_speedx[i]*4/5;
+        
     }
     
     
