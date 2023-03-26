@@ -66,6 +66,9 @@ const unsigned char name[]={\
 DEF_METASPRITE_2x2(char1right,0xd8,true);
 DEF_METASPRITE_2x2_FLIP(char1left,0xd8,true);
 
+DEF_METASPRITE_2x2(char1right_crouch,0xdc,true);
+DEF_METASPRITE_2x2_FLIP(char1left_crouch,0xdc,true);
+
 void p(byte type, byte x, byte y, byte len)
 {
   vram_adr(NTADR_A(x,y));
@@ -97,12 +100,13 @@ struct intent{
 
 struct params{
   short int jump_force;
+  short int short_hop_force;
   short int run_speed;
   byte double_jumps;
   byte jump_crouch_frames;
   short int fall_force;
   short int fall_limit;
-  short int fast_fall_limit;
+  short int fast_fall;
 };
 
 struct platform{
@@ -233,9 +237,9 @@ void main(void) {
     if(demo_mode_on)
     {
       actor_intent[0].right=true;
-      if(rand()%25==5)
+      if(rand()%20==5)
       {
-        actor_intent[0].jump = true;
+        actor_intent[0].jump = rand()%3 == 1;
       }
       
     } 
@@ -247,12 +251,10 @@ void main(void) {
       if(pad & PAD_LEFT)
       {
           actor_intent[0].left = true;
-          actor_sprite[0]=&char1left;
       }
       else if(pad & PAD_RIGHT)
       {
           actor_intent[0].right = true;
-          actor_sprite[0]=&char1right;
       }
       
       // Jump / cancel jump when stat changes. Let simulation update consume intent in between.
@@ -269,7 +271,22 @@ void main(void) {
     // Simulate player 2 (not affected by demo mode)
     if((rand()%25==5))
     {
-      actor_intent[1].jump = true;
+      actor_intent[1].jump = rand()%3 == 1;
+    }
+    if(rand()%30==3)
+    {
+      actor_intent[1].left = false;
+      actor_intent[1].right = false;
+      switch(rand()%3)
+      {
+      	case 0:
+          actor_intent[1].left = true;
+          break;
+      	case 1:
+          actor_intent[1].right = true;
+      	case 2:
+          break;
+      }
     }
     
     // Actor State and intent physics
@@ -287,18 +304,20 @@ void main(void) {
       if (actor_state[i].on_ground == false) // on air
       {
         // Fall speed
-      	actor_speedy[i] +=30;
-        actor_speedy[i] = MIN(actor_speedy[i],420);
+      	actor_speedy[i] +=22; // Gravity for L 0.11/s^2 : 0.11/10*8*256 = 22.5
+        actor_speedy[i] = MIN(actor_speedy[i],420); // 2 units per frame (10cm 60 per second) is 2/10*8*256=410
         
         if(actor_intent[i].jump)
         {
           if(actor_state[i].double_jumps_left>0)
           {
-            actor_speedy[i] = -600;
+            actor_speedy[i] = -512; 
             actor_state[i].double_jumps_left-=1;
           }
           actor_intent[i].jump = false;
         }
+        // if fallen off mid-jump
+        actor_state[i].jump_crouch_frames = 0;
       }
       else // on ground
       {
@@ -307,17 +326,17 @@ void main(void) {
         if(actor_intent[i].jump)
         {
           actor_state[i].jump_crouch_frames++;
-          if (actor_state[i].jump_crouch_frames>5)
+          if (actor_state[i].jump_crouch_frames>=6)
           {
             // Do normal jump
-            actor_speedy[i] = -600;
+            actor_speedy[i] = -512;  // 2.5 units per frame (L) 2.5/10*8*256=512
             actor_intent[i].jump = false;
             actor_state[i].jump_crouch_frames = 0;
           }
         }
         else if (actor_state[i].jump_crouch_frames>0) // Do short jump when cancelling jump early
         {
-          actor_speedy[i] = -300;
+          actor_speedy[i] = -307; // 1.5 units per frame (L) 2.5/10*8*256
           actor_intent[i].jump = false;
           actor_state[i].jump_crouch_frames = 0;
         }
@@ -387,7 +406,30 @@ void main(void) {
         }
       }
       
-      
+      // Select sprite
+      if(actor_speedx[i]>0)
+      {
+        if(actor_state[i].jump_crouch_frames==0)
+        {
+      	  actor_sprite[i] = &char1right;
+        }
+        else
+        {
+          actor_sprite[i] = &char1right_crouch;
+        }
+      }
+      else
+      {
+        if(actor_state[i].jump_crouch_frames==0)
+        {
+      	  actor_sprite[i] = &char1left;
+        }
+        else
+        {
+          actor_sprite[i] = &char1left_crouch
+            ;
+        }
+      }
     }
     
     
