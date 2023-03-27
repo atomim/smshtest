@@ -69,6 +69,12 @@ DEF_METASPRITE_2x2_FLIP(char1left,0xd8,true);
 DEF_METASPRITE_2x2(char1right_crouch,0xdc,true);
 DEF_METASPRITE_2x2_FLIP(char1left_crouch,0xdc,true);
 
+DEF_METASPRITE_2x2(char1right_jump,0xe0,true);
+DEF_METASPRITE_2x2_FLIP(char1left_jump,0xe0,true);
+
+DEF_METASPRITE_2x2(char1right_fast_fall,0xe4,true);
+DEF_METASPRITE_2x2_FLIP(char1left_fast_fall,0xe4,true);
+
 void p(byte type, byte x, byte y, byte len)
 {
   vram_adr(NTADR_A(x,y));
@@ -494,25 +500,52 @@ void main(void) {
       // Select sprite
       if(actor_speedx[i]>0)
       {
-        if(actor_state[i].jump_crouch_frames==0)
+        if(actor_state[i].on_ground)
         {
-      	  actor_sprite[i] = &char1right;
+          if(actor_state[i].jump_crouch_frames==0)
+          {
+            actor_sprite[i] = &char1right;
+          }
+          else
+          {
+            actor_sprite[i] = &char1right_crouch;
+          }
         }
         else
         {
-          actor_sprite[i] = &char1right_crouch;
+          if(actor_intent[i].fast_fall) // Todo: use state instead of intent.
+          {
+            actor_sprite[i] = &char1right_fast_fall;
+          }
+          else
+          {
+            actor_sprite[i] = &char1right_jump;
+          }
         }
       }
       else
       {
-        if(actor_state[i].jump_crouch_frames==0)
+        if(actor_state[i].on_ground)
         {
-      	  actor_sprite[i] = &char1left;
+          if(actor_state[i].jump_crouch_frames==0)
+          {
+            actor_sprite[i] = &char1left;
+          }
+          else
+          {
+            actor_sprite[i] = &char1left_crouch;
+          }
         }
         else
         {
-          actor_sprite[i] = &char1left_crouch
-            ;
+          if(actor_intent[i].fast_fall) // Todo: use state instead of intent.
+          {
+            actor_sprite[i] = &char1left_fast_fall;
+          }
+          else
+          {
+            actor_sprite[i] = &char1left_jump;
+          }
         }
       }
     }
