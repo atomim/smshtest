@@ -81,6 +81,9 @@ void p(byte type, byte x, byte y, byte len)
 
 struct state{
   bool on_ground;
+  bool moving_left;
+  bool moving_right;
+  bool direction_changed;
   byte jump_crouch_frames;
   //byte jump_air_frames;
   byte walk_frames;
@@ -101,7 +104,11 @@ struct intent{
 struct params{
   short int jump_force;
   short int short_hop_force;
+  short int walk_speed;
   short int run_speed;
+  short int dash_speed;
+  byte dash_frames;
+  byte frames_to_run;
   byte double_jumps;
   byte jump_crouch_frames;
   short int fall_force;
@@ -128,6 +135,7 @@ short int actor_speedy[NUM_ACTORS];
 void *actor_sprite[NUM_ACTORS];// Which sprite to show
 struct state actor_state[NUM_ACTORS];
 struct intent actor_intent[NUM_PLATFORMS];
+struct params actor_params[NUM_PLATFORMS];
 struct platform platforms[NUM_PLATFORMS];
 
 byte p_count=0;
@@ -172,6 +180,68 @@ void reset_level_and_bg()
 
 }
 
+void simulate_player(byte num)
+{
+  if((rand()%25==5))
+    {
+      actor_intent[num].jump = rand()%3 == 1;
+    }
+    if(rand()%30==3)
+    {
+      actor_intent[num].left = false;
+      actor_intent[num].right = false;
+      switch(rand()%3)
+      {
+      	case 0:
+          actor_intent[num].left = true;
+          break;
+      	case 1:
+          actor_intent[num].right = true;
+          break;
+      	case 2:
+          // NOP
+          break;
+      }
+    }
+    switch(rand()%50)
+    {
+      case 0:
+    	actor_intent[num].fast_fall = true;
+        break;
+      case 1:
+      case 2:
+      case 3:
+        actor_intent[num].fast_fall = false;
+    }
+}
+
+void initialize_player(byte num, byte type, byte x, byte y)
+{
+  actor_x[num]=x;
+  actor_y[num]=y;
+  actor_xf[num]=0;
+  actor_yf[num]=0;
+  actor_speedx[num]=0;
+  actor_speedy[num]=0;
+  switch(type)
+  {
+    case 0: // L as ref (x/10*8*256)
+      actor_params[num].jump_force = 512;      // 2.5 (M)
+      actor_params[num].short_hop_force = 307;  // 1.5 (M)
+      actor_params[num].walk_speed = 246;       // 1.2 (M)
+      actor_params[num].run_speed = 328;        // 1.6 (M, young, 1.2 old)
+      actor_params[num].frames_to_run = 30;     // 2s (custom)
+      actor_params[num].dash_speed = 367;       // 1.8 (M)
+      actor_params[num].dash_frames = 367;       // 1.8 (M)
+      actor_params[num].double_jumps = 1;       // 1 (All)
+      actor_params[num].jump_crouch_frames = 6; // 6 (M)
+      actor_params[num].fall_force = 22;        // 0.11 (M, Grav)
+      actor_params[num].fall_limit = 436;       // 2.13 (M)
+      actor_params[num].fast_fall = 614;        // 3 (M)
+      break;
+  }
+}
+
 // main function, run after console reset
 void main(void) {
   char pad = 0;
@@ -181,23 +251,8 @@ void main(void) {
   // set background palette colors
   pal_all(PALETTE);
 
-  // Place the player
-  actor_x[0]=54;
-  actor_y[0]=143;
-  actor_xf[0]=0;
-  actor_yf[0]=0;
-  actor_speedx[0]=0;
-  actor_speedy[0]=-600;
-  actor_sprite[0]=&char1right;
-  
-  // Place the bot
-  actor_x[1]=128;
-  actor_y[1]=99;  
-  actor_xf[1]=0;
-  actor_yf[1]=0;
-  actor_speedx[1]=0;
-  actor_speedy[1]=0;
-  actor_sprite[1]=&char1left;
+  initialize_player(0,0,54+10,143);
+  initialize_player(1,0,128,99);
   
   // Draw bg and set platforms data.
   reset_level_and_bg();
@@ -236,11 +291,7 @@ void main(void) {
     
     if(demo_mode_on)
     {
-      actor_intent[0].right=true;
-      if(rand()%20==5)
-      {
-        actor_intent[0].jump = rand()%3 == 1;
-      }
+      simulate_player(0);
       
     } 
     else
@@ -266,61 +317,64 @@ void main(void) {
       {
       	actor_intent[0].jump = false;
       }
+
+      actor_intent[0].fast_fall = pad & PAD_DOWN;
+
     }
     
     // Simulate player 2 (not affected by demo mode)
-    if((rand()%25==5))
-    {
-      actor_intent[1].jump = rand()%3 == 1;
-    }
-    if(rand()%30==3)
-    {
-      actor_intent[1].left = false;
-      actor_intent[1].right = false;
-      switch(rand()%3)
-      {
-      	case 0:
-          actor_intent[1].left = true;
-          break;
-      	case 1:
-          actor_intent[1].right = true;
-      	case 2:
-          break;
-      }
-    }
+    simulate_player(1);
+    
     
     // Actor State and intent physics
     for (i=0; i<NUM_ACTORS; i++) 
     {
+      short int speed;
+      // Walking or running
+      if(actor_state[i].walk_frames>actor_params[i].frames_to_run)
+      {
+        speed = actor_params[i].run_speed;
+      }
+      else
+      {
+        speed = actor_params[i].walk_speed;
+      }
       if (actor_intent[i].left)
       { 
-         actor_speedx[i]=-200;
+         actor_speedx[i]=-speed;
       }
       else if (actor_intent[i].right)
       {
-        actor_speedx[i]=200;
+        actor_speedx[i]=speed;
       }
       
       if (actor_state[i].on_ground == false) // on air
       {
         // Fall speed
-      	actor_speedy[i] +=22; // Gravity for L 0.11/s^2 : 0.11/10*8*256 = 22.5
-        actor_speedy[i] = MIN(actor_speedy[i],420); // 2 units per frame (10cm 60 per second) is 2/10*8*256=410
-        
+      	actor_speedy[i] +=actor_params[i].fall_force; 
+        actor_speedy[i] = MIN(actor_speedy[i],actor_params[i].fall_limit); 
+        if(actor_intent[i].fast_fall && actor_speedy[i]>0)
+        {
+          actor_speedy[i] = actor_params[i].fast_fall;
+        }
+        // jump
         if(actor_intent[i].jump)
         {
           if(actor_state[i].double_jumps_left>0)
           {
-            actor_speedy[i] = -512; 
+            actor_speedy[i] = -actor_params[i].jump_force; 
             actor_state[i].double_jumps_left-=1;
           }
           actor_intent[i].jump = false;
         }
-        // if fallen off mid-jump
+        // reset counters if fallen off mid-jump
         actor_state[i].jump_crouch_frames = 0;
+        actor_state[i].walk_frames = 0;
       }
       else // on ground
       {
+        // Reset fast fall intent on ground:
+        actor_intent[i].fast_fall=false;
         // Always reset double jump frames on ground.
         actor_state[i].double_jumps_left=1;
         if(actor_intent[i].jump)
@@ -329,16 +383,26 @@ void main(void) {
           if (actor_state[i].jump_crouch_frames>=6)
           {
             // Do normal jump
-            actor_speedy[i] = -512;  // 2.5 units per frame (L) 2.5/10*8*256=512
+            actor_speedy[i] = -actor_params[i].jump_force;
             actor_intent[i].jump = false;
             actor_state[i].jump_crouch_frames = 0;
           }
         }
         else if (actor_state[i].jump_crouch_frames>0) // Do short jump when cancelling jump early
         {
-          actor_speedy[i] = -307; // 1.5 units per frame (L) 2.5/10*8*256
+          actor_speedy[i] = -actor_params[i].short_hop_force;
           actor_intent[i].jump = false;
           actor_state[i].jump_crouch_frames = 0;
+        }
+        
+        // count walk frames
+        if(actor_state[i].direction_changed || abs(actor_speedx[i])<1)
+        {
+          actor_state[i].walk_frames = 0;
+        }
+        else
+        {
+          actor_state[i].walk_frames=MIN(actor_state[i].walk_frames++,250);
         }
       }
       
@@ -346,7 +410,6 @@ void main(void) {
       actor_speedx[i]= actor_speedx[i]*4/5;
         
     }
-    
     
     // Actor Physics
     
@@ -379,16 +442,12 @@ void main(void) {
         actoryf+=0xff;
       }
       
+      
       actor_xf[i] = actorxf;
       actor_yf[i] = actoryf;
       
       // Collisions
-      //if(actor_y[i]>143)
-      //{
-      //  actor_y[i] = 143;
-      //  actor_speedy[i] = 0;
-      //  actor_yf[i] = 0;
-      //}
+      
       actor_state[i].on_ground = false;
       for(j=0;j<p_count;++j)
       {
@@ -404,6 +463,32 @@ void main(void) {
           actor_yf[i] = 0;
           actor_state[i].on_ground = true;
         }
+      }
+      
+      // Moving left/right
+      actor_state[i].direction_changed = false;
+      if(actor_speedx[i]>0)
+      {
+        if(actor_state[i].moving_right==false)
+        {
+          actor_state[i].direction_changed = true;
+        }
+        actor_state[i].moving_right=true;
+        actor_state[i].moving_left=false;
+      }
+      else if(actor_speedx[i]<0)
+      {
+        if(actor_state[i].moving_left==false)
+        {
+          actor_state[i].direction_changed = true;
+        }
+        actor_state[i].moving_left=true;
+        actor_state[i].moving_right=false;
+      }
+      else
+      {
+        actor_state[i].moving_right=false;
+        actor_state[i].moving_left=false;
       }
       
       // Select sprite
