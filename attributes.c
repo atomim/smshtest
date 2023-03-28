@@ -63,6 +63,16 @@ const unsigned char name[]={\
         128};
 
 
+// Sprite allocation
+// 64 tiles per char. 4 tiles per sprite. 16 Sprites total
+// 1 stand
+// 2 crouch
+// 3 jump
+// 4 fast fall
+// 5 run (Frame 1/x)
+// 6 dash
+
+
 DEF_METASPRITE_2x2(char1right,0xd8,true);
 DEF_METASPRITE_2x2_FLIP(char1left,0xd8,true);
 
@@ -74,6 +84,10 @@ DEF_METASPRITE_2x2_FLIP(char1left_jump,0xe0,true);
 
 DEF_METASPRITE_2x2(char1right_fast_fall,0xe4,true);
 DEF_METASPRITE_2x2_FLIP(char1left_fast_fall,0xe4,true);
+
+DEF_METASPRITE_2x2(char1right_run,0xe8,true);
+DEF_METASPRITE_2x2_FLIP(char1left_run,0xe8,true);
+
 
 void p(byte type, byte x, byte y, byte len)
 {
@@ -337,9 +351,12 @@ void main(void) {
     {
       short int speed;
       // Walking or running
+      actor_state[i].running=false;
       if(actor_state[i].walk_frames>actor_params[i].frames_to_run)
       {
         speed = actor_params[i].run_speed;
+        actor_state[i].running=true;
+      
       }
       else
       {
@@ -498,11 +515,16 @@ void main(void) {
       }
       
       // Select sprite
-      if(actor_speedx[i]>0)
+      // TODO: deduplicate
+      if(actor_speedx[i]>0)//right
       {
         if(actor_state[i].on_ground)
         {
-          if(actor_state[i].jump_crouch_frames==0)
+          if(actor_state[i].running)
+          {
+            actor_sprite[i] = &char1right_run;
+          }
+          else if(actor_state[i].jump_crouch_frames==0)
           {
             actor_sprite[i] = &char1right;
           }
@@ -523,11 +545,15 @@ void main(void) {
           }
         }
       }
-      else
+      else //left
       {
         if(actor_state[i].on_ground)
         {
-          if(actor_state[i].jump_crouch_frames==0)
+          if(actor_state[i].running)
+          {
+            actor_sprite[i] = &char1left_run;
+          }
+          else if(actor_state[i].jump_crouch_frames==0)
           {
             actor_sprite[i] = &char1left;
           }
