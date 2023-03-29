@@ -116,6 +116,7 @@ struct state{
   bool moving_left;
   bool moving_right;
   bool direction_changed;
+  bool crouching;
   byte jump_crouch_frames;
   byte walk_frames;
   byte dash_frames;
@@ -217,36 +218,42 @@ void reset_level_and_bg()
 void simulate_player(byte num)
 {
   if((rand()%25==5))
-    {
-      actor_intent[num].jump = rand()%3 == 1;
-    }
-    if(rand()%30==3)
-    {
-      actor_intent[num].left = false;
-      actor_intent[num].right = false;
-      switch(rand()%3)
-      {
-      	case 0:
-          actor_intent[num].left = true;
-          break;
-      	case 1:
-          actor_intent[num].right = true;
-          break;
-      	case 2:
-          // NOP
-          break;
-      }
-    }
-    switch(rand()%50)
+  {
+    actor_intent[num].jump = rand()%3 == 1;
+  }
+  if(rand()%30==3)
+  {
+    actor_intent[num].left = false;
+    actor_intent[num].right = false;
+    actor_intent[num].crouch = false;
+    switch(rand()%6)
     {
       case 0:
-    	actor_intent[num].fast_fall = true;
-        break;
       case 1:
+        actor_intent[num].left = true;
+        break;
       case 2:
       case 3:
-        actor_intent[num].fast_fall = false;
+        actor_intent[num].right = true;
+        break;
+      case 4:
+        actor_intent[num].crouch = true;
+        break;
+      case 5:
+        // NOP
+        break;
     }
+  }
+  switch(rand()%50)
+  {
+    case 0:
+      actor_intent[num].fast_fall = true;
+      break;
+    case 1:
+    case 2:
+    case 3:
+      actor_intent[num].fast_fall = false;
+  }
 }
 
 void initialize_player(byte num, byte type, byte x, byte y)
@@ -353,6 +360,7 @@ void main(void) {
       }
 
       actor_intent[0].fast_fall = pad & PAD_DOWN;
+      actor_intent[0].crouch = pad & PAD_DOWN;
 
     }
     
@@ -361,6 +369,7 @@ void main(void) {
     
     
     // Actor State and intent physics
+    //todo: split some state updates out
     for (i=0; i<NUM_ACTORS; i++) 
     {
       short int speed;
@@ -387,6 +396,8 @@ void main(void) {
       
       if (actor_state[i].on_ground == false) // on air
       {
+        // Reset crouch intent on air.
+        actor_intent[i].crouch = false;
         // Fall speed
       	actor_speedy[i] +=actor_params[i].fall_force; 
         actor_speedy[i] = MIN(actor_speedy[i],actor_params[i].fall_limit); 
@@ -412,6 +423,15 @@ void main(void) {
       {
         // Reset fast fall intent on ground:
         actor_intent[i].fast_fall=false;
+        if(actor_intent[i].crouch)
+        {
+          actor_state[i].crouching=true;
+          //todo: crouch cancelings here
+        }
+        else
+        {
+          actor_state[i].crouching=false;
+        }
         // Always reset double jump frames on ground.
         actor_state[i].double_jumps_left=1;
         if(actor_intent[i].jump)
@@ -538,12 +558,17 @@ void main(void) {
           {
             actor_sprite[i] = &char1right_run;
           }
+          else if(actor_state[i].crouching)
+          {
+            actor_sprite[i] = &char1right_crouch;
+          }
           else if(actor_state[i].jump_crouch_frames==0)
           {
             actor_sprite[i] = &char1right;
           }
           else
           {
+            // Todo: handle jump crouch as part of animation instead of last case
             actor_sprite[i] = &char1right_crouch;
           }
         }
@@ -566,6 +591,10 @@ void main(void) {
           if(actor_state[i].running)
           {
             actor_sprite[i] = &char1left_run;
+          }
+          else if(actor_state[i].crouching)
+          {
+            actor_sprite[i] = &char1left_crouch;
           }
           else if(actor_state[i].jump_crouch_frames==0)
           {
@@ -601,8 +630,6 @@ void main(void) {
     for (i=0; i<NUM_ACTORS; i++) {
       // TODO: add camera
       oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, actor_sprite[i]);
-      //actor_x[i] += actor_dx[i];
-      //actor_y[i] += actor_dy[i];
     }
     // hide rest of sprites
     // if we haven't wrapped oam_id around to 0
