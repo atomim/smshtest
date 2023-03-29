@@ -66,11 +66,19 @@ const unsigned char name[]={\
 // Sprite allocation
 // 64 tiles per char. 4 tiles per sprite. 16 Sprites total
 // 1 stand
-// 2 crouch
+// 2 crouch (used for both starting jump and crouch)
 // 3 jump
 // 4 fast fall
 // 5 run (Frame 1/x)
 // 6 dash
+// 7 ledge
+
+// Todo:
+// *edge grab
+// *dash
+// *crouch (and dash cancel)
+// *neutral attack
+// *clarify states and logic more(enums and masks)
 
 
 DEF_METASPRITE_2x2(char1right,0xd8,true);
@@ -87,6 +95,10 @@ DEF_METASPRITE_2x2_FLIP(char1left_fast_fall,0xe4,true);
 
 DEF_METASPRITE_2x2(char1right_run,0xe8,true);
 DEF_METASPRITE_2x2_FLIP(char1left_run,0xe8,true);
+
+DEF_METASPRITE_2x2(char1right_ledge,0xf0,true);
+DEF_METASPRITE_2x2_FLIP(char1left_ledge,0xf0,true);
+
 
 
 void p(byte type, byte x, byte y, byte len)
@@ -105,9 +117,10 @@ struct state{
   bool moving_right;
   bool direction_changed;
   byte jump_crouch_frames;
-  //byte jump_air_frames;
   byte walk_frames;
   byte dash_frames;
+  byte movement_hold_frames; // for crouch canceling dash
+  byte attack_hold_frames;   // for attacks
   byte running;
   byte double_jumps_left;
 };
@@ -117,6 +130,7 @@ struct intent{
   bool jump;
   //bool short_jump; // Cancel jump by releasing during crouch.
   //bool double_jump;
+  bool crouch;
   bool dash;
   bool fast_fall;
 };
