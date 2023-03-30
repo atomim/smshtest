@@ -513,6 +513,7 @@ void main(void) {
            && actor_y[i]+17<=platforms[j].y*8+8
            && actor_x[i]+8>platforms[j].x1*8
            && actor_x[i]+8<platforms[j].x2*8
+           && (!actor_state[i].crouching || platforms[j].type==0)
           )
         {
           actor_y[i] = platforms[j].y*8-17+4*(platforms[j].type==1);
