@@ -74,11 +74,34 @@ const unsigned char name[]={\
 // 7 ledge
 
 // Todo:
+// !create level
+// !create shadows
+// !create sprites
+// !subpixel physics
+// !move left and righ
+// !jump
+// !collision with level
+// !bot player
+// !crouch animation when jumping
+// !demo mode
+// !jump sprite
+// !fast fall
+// !fast fall sprite
+// !running
+// !run sprite
+// *improve input, precalc edge
+// !edge grab sprite
 // *edge grab
 // *dash
-// *crouch (and dash cancel)
+// *more clear attack/animation state 
+// *crouch
+// *fall through
+// *crouch dash cancel
+// *dash attack
+// *ai to avoid falling
 // *neutral attack
 // *clarify states and logic more(enums and masks)
+// *support coordinates outsode of screen
 
 
 DEF_METASPRITE_2x2(char1right,0xd8,true);
@@ -169,8 +192,8 @@ short int actor_speedx[NUM_ACTORS]; // Speed
 short int actor_speedy[NUM_ACTORS];
 void *actor_sprite[NUM_ACTORS];// Which sprite to show
 struct state actor_state[NUM_ACTORS];
-struct intent actor_intent[NUM_PLATFORMS];
-struct params actor_params[NUM_PLATFORMS];
+struct intent actor_intent[NUM_ACTORS];
+struct params actor_params[NUM_ACTORS]; // Todo: move to rom
 struct platform platforms[NUM_PLATFORMS];
 
 byte p_count=0;
