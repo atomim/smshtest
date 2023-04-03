@@ -156,6 +156,7 @@ struct intent{
   //bool double_jump;
   bool crouch;
   bool dash;
+  bool fall_through;
   bool fast_fall;
 };
 
@@ -240,6 +241,8 @@ void reset_level_and_bg()
 
 void simulate_player(byte num)
 {
+  // TODO: optimize perf
+  //int r = rand();
   if((rand()%25==5))
   {
     actor_intent[num].jump = rand()%3 == 1;
@@ -306,10 +309,21 @@ void initialize_player(byte num, byte type, byte x, byte y)
   }
 }
 
+#pragma bss-name (push,"ZEROPAGE")
+#pragma data-name(push,"ZEROPAGE")
+struct state* s;
+#pragma bss-name (pop)
+#pragma data-name(pop)
+
+
+
 // main function, run after console reset
 void main(void) {
   char pad = 0;
   char last_pad = 0;
+  char pad_rising = 0;
+  char pad_falling =0;
+  char clock=0;
   bool demo_mode_on = true;
   
   // set background palette colors
@@ -333,12 +347,19 @@ void main(void) {
 
   // infinite loop
   while (1) {
-    char i, j; // actor index
-    char oam_id; // sprite ID
+    unsigned char i, j; // actor index
+    unsigned char oam_id; // sprite ID
+    unsigned char newclock;
+    
+    short int speed;
+
     
     // Controls
     last_pad = pad;
     pad = pad_poll(0);
+    pad_rising = pad^last_pad&pad;
+    pad_falling = pad^last_pad&last_pad;
+    
     
     // Disable demo mode
     if(demo_mode_on && pad & PAD_START)
@@ -356,7 +377,6 @@ void main(void) {
     if(demo_mode_on)
     {
       simulate_player(0);
-      
     } 
     else
     {
@@ -373,7 +393,7 @@ void main(void) {
       }
       
       // Jump / cancel jump when stat changes. Let simulation update consume intent in between.
-      if((pad & PAD_A )==true && ((last_pad & PAD_A ) ==false))
+      if(pad_rising & PAD_A)
       {
       	actor_intent[0].jump = true;
       }
@@ -395,13 +415,14 @@ void main(void) {
     //todo: split some state updates out
     for (i=0; i<NUM_ACTORS; i++) 
     {
-      short int speed;
+      s=&actor_state[i];
+            
       // Walking or running
-      actor_state[i].running=false;
-      if(actor_state[i].walk_frames>actor_params[i].frames_to_run)
+      s->running=false;
+      if(s->walk_frames>actor_params[i].frames_to_run)
       {
         speed = actor_params[i].run_speed;
-        actor_state[i].running=true;
+        s->running=true;
       
       }
       else
@@ -417,7 +438,7 @@ void main(void) {
         actor_speedx[i]=speed;
       }
       
-      if (actor_state[i].on_ground == false) // on air
+      if (s->on_ground == false) // on air
       {
         // Reset crouch intent on air.
         actor_intent[i].crouch = false;
@@ -453,10 +474,10 @@ void main(void) {
         }
         else
         {
-          actor_state[i].crouching=false;
+          s->crouching=false;
         }
         // Always reset double jump frames on ground.
-        actor_state[i].double_jumps_left=1;
+        s->double_jumps_left=1;
         if(actor_intent[i].jump)
         {
           actor_state[i].jump_crouch_frames++;
@@ -468,7 +489,7 @@ void main(void) {
             actor_state[i].jump_crouch_frames = 0;
           }
         }
-        else if (actor_state[i].jump_crouch_frames>0) // Do short jump when cancelling jump early
+        else if (s->jump_crouch_frames>0) // Do short jump when cancelling jump early
         {
           actor_speedy[i] = -actor_params[i].short_hop_force;
           actor_intent[i].jump = false;
@@ -476,13 +497,13 @@ void main(void) {
         }
         
         // count walk frames
-        if(actor_state[i].direction_changed || abs(actor_speedx[i])<1)
+        if(s->direction_changed || abs(actor_speedx[i])<1)
         {
           actor_state[i].walk_frames = 0;
         }
         else
         {
-          actor_state[i].walk_frames=MIN(actor_state[i].walk_frames++,250);
+          s->walk_frames=MIN(++s->walk_frames,250);
         }
       }
       
@@ -494,9 +515,9 @@ void main(void) {
     // Actor Physics
     
     for (i=0; i<NUM_ACTORS; i++) {
-
       short int actorxf;
       short int actoryf;
+      s=&actor_state[i];
       actorxf = actor_xf[i]+actor_speedx[i];
       actoryf = actor_yf[i]+actor_speedy[i];
       // TODO: no loops here.
@@ -528,7 +549,7 @@ void main(void) {
       
       // Collisions
       
-      actor_state[i].on_ground = false;
+      s->on_ground = false;
       for(j=0;j<p_count;++j)
       {
         if(actor_speedy[i] >= 0
@@ -536,18 +557,18 @@ void main(void) {
            && actor_y[i]+17<=platforms[j].y*8+8
            && actor_x[i]+8>platforms[j].x1*8
            && actor_x[i]+8<platforms[j].x2*8
-           && (!actor_state[i].crouching || platforms[j].type==0)
+           && (!s->crouching || platforms[j].type==0)
           )
         {
           actor_y[i] = platforms[j].y*8-17+4*(platforms[j].type==1);
           actor_speedy[i] = 0;
           actor_yf[i] = 0;
-          actor_state[i].on_ground = true;
+          s->on_ground = true;
         }
       }
       
       // Moving left/right
-      actor_state[i].direction_changed = false;
+      s->direction_changed = false;
       if(actor_speedx[i]>0)
       {
         if(actor_state[i].moving_right==false)
@@ -568,8 +589,8 @@ void main(void) {
       }
       else
       {
-        actor_state[i].moving_right=false;
-        actor_state[i].moving_left=false;
+        s->moving_right=false;
+        s->moving_left=false;
       }
       
       // Select sprite
@@ -610,17 +631,17 @@ void main(void) {
       }
       else //left
       {
-        if(actor_state[i].on_ground)
+        if(s->on_ground)
         {
-          if(actor_state[i].running)
+          if(s->running)
           {
             actor_sprite[i] = &char1left_run;
           }
-          else if(actor_state[i].crouching)
+          else if(s->crouching)
           {
             actor_sprite[i] = &char1left_crouch;
           }
-          else if(actor_state[i].jump_crouch_frames==0)
+          else if(s->jump_crouch_frames==0)
           {
             actor_sprite[i] = &char1left;
           }
@@ -660,7 +681,23 @@ void main(void) {
     if (oam_id!=0) oam_hide_rest(oam_id);
     // wait for next frame
     
+    // loop to count extra time in frame
+    {
+      int i;
+      for(i=0;i<50;++i)
+      {
+      }
+    }
     
-    ppu_wait_frame();
+    ppu_wait_nmi();
+    
+    // detect frame drops
+    newclock = nesclock();
+    if(newclock-clock>1)
+      pal_col(0,0x16);
+    else
+      pal_col(0,0x1c);
+    clock=newclock;
+    
   }
 }
