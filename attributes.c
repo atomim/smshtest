@@ -89,7 +89,8 @@ const unsigned char name[]={\
 // !fast fall sprite
 // !running
 // !run sprite
-// *improve input, precalc edge
+// !improve input, precalc edge
+// *optimize ai randomness
 // !edge grab sprite
 // *edge grab
 // *dash
@@ -239,46 +240,42 @@ void reset_level_and_bg()
 
 }
 
-void simulate_player(byte num)
+void simulate_player(unsigned char num)
 {
   // TODO: optimize perf
-  //int r = rand();
-  if((rand()%25==5))
+  unsigned int r = rand();
+  unsigned char r32 = r&0x2f;
+  unsigned char r64 = r&0x4f;
+  //unsigned char player =(num&0x300>>8); // move outside
+  //if(player==num) // apply on heavy parts or whole logic.
+  switch(r64)
   {
-    actor_intent[num].jump = rand()%3 == 1;
-  }
-  if(rand()%30==3)
-  {
-    actor_intent[num].left = false;
-    actor_intent[num].right = false;
-    actor_intent[num].crouch = false;
-    switch(rand()%6)
-    {
-      case 0:
-      case 1:
-        actor_intent[num].left = true;
-        break;
-      case 2:
-      case 3:
-        actor_intent[num].right = true;
-        break;
-      case 4:
-        actor_intent[num].crouch = true;
-        break;
-      case 5:
-        // NOP
-        break;
-    }
-  }
-  switch(rand()%50)
-  {
-    case 0:
-      actor_intent[num].fast_fall = true;
-      break;
     case 1:
+      actor_intent[num].jump = true;
+      break;
     case 2:
     case 3:
+      actor_intent[num].jump = false;
+      break;
+    case 4: //1/ stop. 2/
+      actor_intent[num].left = false;
+      actor_intent[num].right = false;
+      actor_intent[num].crouch = false;
+      break;
+    case 5:
+      actor_intent[num].left = true;
+      break;
+    case 6:
+      actor_intent[num].right = true;
+      break;
+    case 7:
+      actor_intent[num].fast_fall = true;
+      break;
+    case 8:
+    case 9:
+    case 10:
       actor_intent[num].fast_fall = false;
+      break;
   }
 }
 
@@ -309,6 +306,7 @@ void initialize_player(byte num, byte type, byte x, byte y)
   }
 }
 
+// try to push a frequent pointer to zp.
 #pragma bss-name (push,"ZEROPAGE")
 #pragma data-name(push,"ZEROPAGE")
 struct state* s;
@@ -408,7 +406,7 @@ void main(void) {
     }
     
     // Simulate player 2 (not affected by demo mode)
-    simulate_player(1);
+    //simulate_player(1);
     
     
     // Actor State and intent physics
@@ -683,8 +681,8 @@ void main(void) {
     
     // loop to count extra time in frame
     {
-      int i;
-      for(i=0;i<50;++i)
+      //int i;
+      //for(i=0;i<50;++i)
       {
       }
     }
