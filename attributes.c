@@ -90,19 +90,23 @@ const unsigned char name[]={\
 // !running
 // !run sprite
 // !improve input, precalc edge
-// *optimize ai randomness
+// !optimize ai randomness
 // !edge grab sprite
 // *edge grab
 // *dash
 // *more clear attack/animation state 
 // *crouch
-// *fall through
+// !fall through
+// *better fall through control
 // *crouch dash cancel
 // *dash attack
-// *ai to avoid falling
+// *ai to avoid falling off
 // *neutral attack
 // *clarify states and logic more(enums and masks)
-// *support coordinates outsode of screen
+// *support coordinates outside of screen
+// *KO on edges, spawning
+// *Make opposite intents mutually exclusive
+// *optimize platform iteration
 
 
 DEF_METASPRITE_2x2(char1right,0xd8,true);
@@ -244,11 +248,52 @@ void simulate_player(unsigned char num)
 {
   // TODO: optimize perf
   unsigned int r = rand();
-  unsigned char r32 = r&0x2f;
-  unsigned char r64 = r&0x4f;
+  unsigned char r32 = r&0x1f;
+  unsigned char r64 = r&0x3f;
+  unsigned char r128 = r&0x7f;
   //unsigned char player =(num&0x300>>8); // move outside
   //if(player==num) // apply on heavy parts or whole logic.
-  switch(r64)
+  
+  unsigned char j;
+  //short int dy=;
+  //char dx;
+  signed char id_under =-1;
+  signed char id_right=-1;
+  signed char id_left=-1;
+  //unsigned char closest_platform = 0;
+  for(j=0;j<p_count;++j)
+  {
+    bool isLeft;
+    bool isRight;
+    isLeft = actor_x[num]+8>platforms[j].x1*8;
+    isRight = actor_x[num]+8<platforms[j].x2*8;
+
+    if(isLeft&&isRight)
+    {
+      bool isUnder;
+      isUnder=actor_y[num]+17>=platforms[j].y;
+      if(isUnder)
+      {
+        id_under=j;
+        //todo: make sure it is closest under
+      }
+    }else
+    {
+      if(isLeft)
+      {
+        id_left=j;
+        //todo: make sure it is closest
+      }
+      if(isRight)
+      {
+        id_right=j;
+        //todo: make sure it is closest
+      }
+    }
+
+  }
+  
+  switch(r128)
   {
     case 1:
       actor_intent[num].jump = true;
@@ -276,6 +321,36 @@ void simulate_player(unsigned char num)
     case 10:
       actor_intent[num].fast_fall = false;
       break;
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+      {
+      // Todo: move to be calculated before any decision.
+      
+      if(id_under==-1)
+      {
+        if(id_left!=-1)
+        {
+          actor_intent[num].left=true;
+          actor_intent[num].right=false;
+        }
+        if(id_right!=-1)
+        {
+          actor_intent[num].right=true;
+          actor_intent[num].left=false;
+        }
+        actor_intent[num].fast_fall=false;
+        if(actor_speedy[num]>0)
+        {
+          actor_intent[num].jump=true;
+        }
+      }
+      }
+
   }
 }
 
@@ -406,7 +481,7 @@ void main(void) {
     }
     
     // Simulate player 2 (not affected by demo mode)
-    //simulate_player(1);
+    simulate_player(1);
     
     
     // Actor State and intent physics
