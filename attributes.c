@@ -74,39 +74,45 @@ const unsigned char name[]={\
 // 7 ledge
 
 // Todo:
-// !create level
-// !create shadows
-// !create sprites
-// !subpixel physics
-// !move left and righ
-// !jump
-// !collision with level
-// !bot player
-// !crouch animation when jumping
-// !demo mode
-// !jump sprite
-// !fast fall
-// !fast fall sprite
-// !running
-// !run sprite
-// !improve input, precalc edge
-// !optimize ai randomness
-// !edge grab sprite
+// !create level (day 1)
+// !create shadows (day 1)
+// !create sprites (day 1)
+// !subpixel physics (day 1.5)
+// !move left and righ (day 1.5)
+// !jump (day 1.5)
+// !collision with level (day 1.5)
+// !bot player (day 2)
+// !crouch animation when jumping (day 2)
+// !demo mode (day 2)
+// !jump sprite (day 2)
+// !fast fall (day 2.5)
+// !fast fall sprite (day 2.5)
+// !running (day 2.5)
+// !run sprite (day 2.5)
+// !fall through (day 2.5)
+// !improve input, precalc edge (day 3)
+// !optimize ai randomness (day 3)
+// !edge grab sprite (day 2.5)
 // *edge grab
 // *dash
 // *more clear attack/animation state 
 // *crouch
-// !fall through
 // *better fall through control
 // *crouch dash cancel
+// *running inertia
+// *dash dancing support
 // *dash attack
-// *ai to avoid falling off
+// !ai to avoid falling off(day 3)
 // *neutral attack
 // *clarify states and logic more(enums and masks)
 // *support coordinates outside of screen
 // *KO on edges, spawning
 // *Make opposite intents mutually exclusive
-// *optimize platform iteration
+// *optimize platform iteration and access
+// !warn on frame drops (day 3)
+// !optimize player iteration(day 2.5)
+// *optimizeintent access
+// *optimize physics iteration
 
 
 DEF_METASPRITE_2x2(char1right,0xd8,true);
