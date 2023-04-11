@@ -69,9 +69,11 @@ const unsigned char name[]={\
 // 2 crouch (used for both starting jump and crouch)
 // 3 jump
 // 4 fast fall
-// 5 run (Frame 1/x)
-// 6 dash
+// 5 dash
+// 6 run
 // 7 ledge
+// 8 ledge sway
+// 9 skid
 
 // Todo:
 // !create level (day 1)
@@ -106,13 +108,14 @@ const unsigned char name[]={\
 // *neutral attack
 // *clarify states and logic more(enums and masks)
 // *support coordinates outside of screen
-// *KO on edges, spawning
+// *KO on arena edges, spawning
 // *Make opposite intents mutually exclusive
-// *optimize platform iteration and access
+// !optimize platform iteration and access (day 3)
 // !warn on frame drops (day 3)
 // !optimize player iteration(day 2.5)
-// *optimizeintent access
+// *optimize intent access
 // *optimize physics iteration
+// *add sprite for edge sway
 
 
 DEF_METASPRITE_2x2(char1right,0xd8,true);
@@ -127,8 +130,12 @@ DEF_METASPRITE_2x2_FLIP(char1left_jump,0xe0,true);
 DEF_METASPRITE_2x2(char1right_fast_fall,0xe4,true);
 DEF_METASPRITE_2x2_FLIP(char1left_fast_fall,0xe4,true);
 
-DEF_METASPRITE_2x2(char1right_run,0xe8,true);
-DEF_METASPRITE_2x2_FLIP(char1left_run,0xe8,true);
+DEF_METASPRITE_2x2(char1right_run,0xec,true);
+DEF_METASPRITE_2x2_FLIP(char1left_run,0xec,true);
+
+DEF_METASPRITE_2x2(char1right_dash,0xe8,true);
+DEF_METASPRITE_2x2_FLIP(char1left_dash,0xe8,true);
+
 
 DEF_METASPRITE_2x2(char1right_ledge,0xf0,true);
 DEF_METASPRITE_2x2_FLIP(char1left_ledge,0xf0,true);
@@ -189,8 +196,12 @@ struct params{
 struct platform{
   byte x1;
   byte x2;
-  byte y;
+  byte y1;
+  byte y2;
   byte type;
+  byte height;
+  byte can_fall_through;
+  byte has_edge;
 };
 
 #define NUM_ACTORS 2
@@ -224,10 +235,24 @@ byte p_count=0;
 void addp(byte type, byte x, byte y, byte len)
 {
   platforms[p_count].x1=x*8;
-    platforms[p_count].x2=(x+len)*8;
-    platforms[p_count].y=y*8;
-    platforms[p_count].type=type;
-    ++p_count;
+  platforms[p_count].x2=(x+len)*8;
+  platforms[p_count].type=type;
+  switch(type)
+  {
+    case 0:
+        platforms[p_count].y1=y*8;
+        platforms[p_count].y2=(y+1)*8;
+        platforms[p_count].can_fall_through=false;
+        platforms[p_count].has_edge=true;
+      break;
+    case 1:
+        platforms[p_count].y1=y*8+4;
+        platforms[p_count].y2=(y+1)*8;
+        platforms[p_count].can_fall_through=true;
+        platforms[p_count].has_edge=false;
+      break;
+  }
+  ++p_count;
 }
 
 void reset_level_and_bg()
@@ -287,7 +312,7 @@ void simulate_player(unsigned char num)
     if(isLeft&&isRight)
     {
       bool isUnder;
-      isUnder=actor_y[num]+17>=cur_platform->y;
+      isUnder=actor_y[num]+17>=cur_platform->y1;
       if(isUnder)
       {
         id_under=j;
@@ -308,61 +333,68 @@ void simulate_player(unsigned char num)
     }
 
   }
-  
-  switch(r128)
+  //if(r128<20)
   {
-    case 1:
-      actor_intent[num].jump = true;
-      break;
-    case 2:
-    case 3:
-      actor_intent[num].jump = false;
-      break;
-    case 4: //1/ stop. 2/
-      actor_intent[num].left = false;
-      actor_intent[num].right = false;
-      actor_intent[num].crouch = false;
-      break;
-    case 5:
-      actor_intent[num].left = true;
-      break;
-    case 6:
-      actor_intent[num].right = true;
-      break;
-    case 7:
-      actor_intent[num].fast_fall = true;
-      break;
-    case 8:
-    case 9:
-    case 10:
-      actor_intent[num].fast_fall = false;
-      break;
-    case 11:
-    case 12:
-    case 13:
-    case 14:
-    case 15:
-    case 16:
-    case 17: 
-      if(id_under==-1)
-      {
-        if(id_left!=-1)
+    char i;
+    for(i=MIN(20,r128);i>0;--i)
+    {
+    }
+    switch(r128)
+    {
+      case 1:
+        actor_intent[num].jump = true;
+        break;
+      case 2:
+      case 3:
+        actor_intent[num].jump = false;
+        break;
+      case 4: //1/ stop. 2/
+        actor_intent[num].left = false;
+        actor_intent[num].right = false;
+        actor_intent[num].crouch = false;
+        break;
+      case 5:
+        actor_intent[num].left = true;
+        break;
+      case 6:
+        actor_intent[num].right = true;
+        break;
+      case 7:
+        actor_intent[num].fast_fall = true;
+        break;
+      case 8:
+      case 9:
+      case 10:
+        actor_intent[num].fast_fall = false;
+        break;
+      case 11:
+      case 12:
+      case 13:
+      case 14:
+      case 15:
+      case 16:
+      case 17:
+        break;
+        if(id_under==-1)
         {
-          actor_intent[num].left=true;
-          actor_intent[num].right=false;
+          if(id_left!=-1)
+          {
+            actor_intent[num].left=true;
+            actor_intent[num].right=false;
+          }
+          if(id_right!=-1)
+          {
+            actor_intent[num].right=true;
+            actor_intent[num].left=false;
+          }
+          actor_intent[num].fast_fall=false;
+          if(actor_speedy[num]>0)
+          {
+            actor_intent[num].jump=true;
+          }
         }
-        if(id_right!=-1)
-        {
-          actor_intent[num].right=true;
-          actor_intent[num].left=false;
-        }
-        actor_intent[num].fast_fall=false;
-        if(actor_speedy[num]>0)
-        {
-          actor_intent[num].jump=true;
-        }
-      }
-      break;
+        break;
+    }
   }
 }
 
@@ -522,10 +554,14 @@ void main(void) {
         actor_intent[i].crouch = false;
         // Fall speed
       	actor_speedy[i] +=actor_params[i].fall_force; 
-        actor_speedy[i] = MIN(actor_speedy[i],actor_params[i].fall_limit); 
+        
         if(actor_intent[i].fast_fall && actor_speedy[i]>0)
         {
           actor_speedy[i] = actor_params[i].fast_fall;
+        }
+        else
+        {
+          actor_speedy[i] = MIN(actor_speedy[i],actor_params[i].fall_limit);
         }
         // jump
         if(actor_intent[i].jump)
@@ -575,7 +611,7 @@ void main(void) {
         }
         
         // count walk frames
-        if(a_state->direction_changed || abs(actor_speedx[i])<1)
+        if(a_state->direction_changed || actor_speedx[i]==0)
         {
           a_state->walk_frames = 0;
         }
@@ -631,16 +667,27 @@ void main(void) {
       a_state->on_ground = false;
       for(j=0;j<p_count;++j)
       {
+        bool falling;
+        byte actor_feet_x;
+        byte actor_feet_y;
+        byte speed_y_in_pixels;
+        bool skip_due_to_fall_through;
         cur_platform=&platforms[j];
-        if(actor_speedy[i] >= 0
-           && actor_y[i]+17>=cur_platform->y-(actor_speedy[i]>>8)+4*(cur_platform->type==1)
-           && actor_y[i]+17<=cur_platform->y+8
-           && actor_x[i]+8>cur_platform->x1
-           && actor_x[i]+8<cur_platform->x2
-           && (!a_state->crouching || cur_platform->type==0)
+        actor_feet_x=actor_x[i]+8;
+        actor_feet_y=actor_y[i]+17;
+        speed_y_in_pixels=(actor_speedy[i]>>8);
+        skip_due_to_fall_through=(!a_state->crouching || cur_platform->can_fall_through);
+        
+        falling=actor_speedy[i] >= 0;
+        if(falling
+           && actor_feet_y>=cur_platform->y1
+           && actor_feet_y<=cur_platform->y2
+           && actor_feet_x>cur_platform->x1
+           && actor_feet_x<cur_platform->x2
+           && skip_due_to_fall_through
           )
         {
-          actor_y[i] = cur_platform->y-17+4*(cur_platform->type==1);
+          actor_y[i] = cur_platform->y1-17;
           actor_speedy[i] = 0;
           actor_yf[i] = 0;
           a_state->on_ground = true;
