@@ -136,7 +136,6 @@ DEF_METASPRITE_2x2_FLIP(char1left_run,0xec,true);
 DEF_METASPRITE_2x2(char1right_dash,0xe8,true);
 DEF_METASPRITE_2x2_FLIP(char1left_dash,0xe8,true);
 
-
 DEF_METASPRITE_2x2(char1right_ledge,0xf0,true);
 DEF_METASPRITE_2x2_FLIP(char1left_ledge,0xf0,true);
 
@@ -152,18 +151,41 @@ void p(byte type, byte x, byte y, byte len)
   vram_fill(0x06, 1);
 }
 
+// Todo: convert to defines
+enum action_state
+{
+  ACTION_STAND_BY_GROUND=0,
+  ACTION_STAND_BY_AIR=1,
+  ACTION_CROUCHING_TO_JUMP_GROUND=2,
+  ACTION_CROUCHING_GROUND=3,
+  ACTION_HANGING_GROUND=4, //todo
+  ACTION_WALKING_GROUND=5,
+  ACTION_RUNNING_GROUND=6,
+  ACTION_DASHING_GROUND=7,
+  ACTION_TURNING_AROUND_GROUND=8, // todo
+  ACTION_STOPPING_GROUND=9, // todo
+  ACTION_FAST_FALLING_AIR=10, 
+  ACTION_ATTACK_GROUND=11, // todo
+  ACTION_ATTACK_AIR=12 // todo
+};
+
+#define ON_GROUND(state) (((state)!=ACTION_STAND_BY_AIR)&&((state)!=ACTION_FAST_FALLING_AIR)&&((state)!=ACTION_ATTACK_AIR))
+
 struct state{
-  bool on_ground;
+  enum action_state current_action;
+  //bool on_ground;
   bool moving_left;
   bool moving_right;
   bool direction_changed;
-  bool crouching;
-  byte jump_crouch_frames;
-  byte walk_frames;
-  byte dash_frames;
-  byte movement_hold_frames; // for crouch canceling dash
-  byte attack_hold_frames;   // for attacks
-  byte running;
+  //bool crouching;
+  // hanging
+  //byte jump_crouch_frames;
+  //byte walk_frames;
+  //byte dash_frames;
+  //byte movement_hold_frames; // for crouch canceling dash
+  //byte attack_hold_frames;   // for attacks
+  //byte running;
+  byte current_action_frames;
   byte double_jumps_left;
 };
 struct intent{
@@ -174,7 +196,6 @@ struct intent{
   //bool double_jump;
   bool crouch;
   bool dash;
-  bool fall_through;
   bool fast_fall;
 };
 
@@ -240,13 +261,13 @@ void addp(byte type, byte x, byte y, byte len)
   switch(type)
   {
     case 0:
-        platforms[p_count].y1=y*8;
+        platforms[p_count].y1=y*8-2;
         platforms[p_count].y2=(y+1)*8;
         platforms[p_count].can_fall_through=false;
         platforms[p_count].has_edge=true;
       break;
     case 1:
-        platforms[p_count].y1=y*8+4;
+        platforms[p_count].y1=y*8+4-2;
         platforms[p_count].y2=(y+1)*8;
         platforms[p_count].can_fall_through=true;
         platforms[p_count].has_edge=false;
@@ -284,6 +305,16 @@ void reset_level_and_bg()
   // copy attribute table from PRG ROM to VRAM
   vram_write(ATTRIBUTE_TABLE, sizeof(ATTRIBUTE_TABLE));
 
+}
+
+void print_state(byte player,short int adr)
+{
+  byte cur_action=actor_state[player].current_action;
+  vram_adr(adr);
+  
+  //vram_write("Press START to stop Demo mode.", 30);
+  vram_fill(0x30+actor_state[player].current_action, 1);
+  vram_adr(NTADR_A(0,0));
 }
 
 void simulate_player(unsigned char num)
@@ -343,29 +374,34 @@ void simulate_player(unsigned char num)
     {
       case 1:
         actor_intent[num].jump = true;
+        actor_intent[num].crouch = false;
         break;
       case 2:
       case 3:
         actor_intent[num].jump = false;
         break;
-      case 4: //1/ stop. 2/
+      case 4: 
         actor_intent[num].left = false;
         actor_intent[num].right = false;
         actor_intent[num].crouch = false;
         break;
       case 5:
         actor_intent[num].left = true;
+        actor_intent[num].crouch = false;
         break;
       case 6:
         actor_intent[num].right = true;
+        actor_intent[num].crouch = false;
         break;
       case 7:
         actor_intent[num].fast_fall = true;
+        actor_intent[num].crouch = true;
         break;
       case 8:
       case 9:
       case 10:
         actor_intent[num].fast_fall = false;
+        actor_intent[num].crouch = false;
         break;
       case 11:
       case 12:
@@ -374,7 +410,6 @@ void simulate_player(unsigned char num)
       case 15:
       case 16:
       case 17:
-        break;
         if(id_under==-1)
         {
           if(id_left!=-1)
@@ -423,6 +458,7 @@ void initialize_player(byte num, byte type, byte x, byte y)
       actor_params[num].fast_fall = 614;        // 3 (M)
       break;
   }
+  actor_state[num].current_action=ACTION_STAND_BY_GROUND;
 }
 
 
@@ -460,8 +496,6 @@ void main(void) {
     unsigned char oam_id; // sprite ID
     unsigned char newclock;
     
-    short int speed;
-
     
     // Controls
     last_pad = pad;
@@ -524,31 +558,16 @@ void main(void) {
     //todo: split some state updates out
     for (i=0; i<NUM_ACTORS; i++) 
     {
+      enum action_state cur_action;
+      bool on_ground;
+      byte action_frames;
       a_state=&actor_state[i];
-            
-      // Walking or running
-      a_state->running=false;
-      if(a_state->walk_frames>actor_params[i].frames_to_run)
-      {
-        speed = actor_params[i].run_speed;
-        a_state->running=true;
+      cur_action=a_state->current_action;
+      action_frames=a_state->current_action_frames;
+      on_ground=ON_GROUND(cur_action);
       
-      }
-      else
-      {
-        speed = actor_params[i].walk_speed;
-      }
-      // Todo: speed behaviormin air
-      if (actor_intent[i].left)
-      { 
-         actor_speedx[i]=-speed;
-      }
-      else if (actor_intent[i].right)
-      {
-        actor_speedx[i]=speed;
-      }
       
-      if (a_state->on_ground == false) // on air
+      if (!on_ground) // on air
       {
         // Reset crouch intent on air.
         actor_intent[i].crouch = false;
@@ -573,63 +592,135 @@ void main(void) {
           }
           actor_intent[i].jump = false;
         }
-        // reset counters if fallen off mid-jump
-        a_state->jump_crouch_frames = 0;
-        a_state->walk_frames = 0;
+        
+        if(cur_action==ACTION_STAND_BY_AIR)
+        {
+          if(actor_intent[i].left)
+            {
+              actor_speedx[i]=-actor_params[i].run_speed;
+            }
+            else if(actor_intent[i].right)
+            {
+              actor_speedx[i]=actor_params[i].run_speed;
+            }
+          // todo:skidding
+          // todo:dashing
+        }
       }
       else // on ground
       {
-        // Reset fast fall intent on ground:
+        // Reset fast fall intent on ground. Todo:move after input.
         actor_intent[i].fast_fall=false;
-        if(actor_intent[i].crouch)
+        
+        if(cur_action==ACTION_STAND_BY_GROUND)
         {
-          a_state->crouching=true;
-          //todo: crouch cancelings here
+          if(actor_intent[i].left || actor_intent[i].right)
+          {
+            cur_action=ACTION_WALKING_GROUND;
+            action_frames=0;
+          }
         }
-        else
+        if(cur_action==ACTION_WALKING_GROUND)
         {
-          a_state->crouching=false;
+          if(action_frames>actor_params[i].frames_to_run)
+          {
+            cur_action=ACTION_RUNNING_GROUND;
+            action_frames=0;
+          }
+          else
+          {
+            
+            if(a_state->direction_changed || actor_speedx[i]==0)
+            {
+              action_frames=0;
+            }
+            if(actor_intent[i].left)
+            {
+              actor_speedx[i]=-actor_params[i].walk_speed;
+            }
+            else if(actor_intent[i].right)
+            {
+              actor_speedx[i]=actor_params[i].walk_speed;
+            }
+          }
+        }
+        if(cur_action==ACTION_RUNNING_GROUND)
+        {
+          if(actor_intent[i].left)
+          {
+            actor_speedx[i]=-actor_params[i].run_speed;
+          }
+          else if(actor_intent[i].right)
+          {
+            actor_speedx[i]=actor_params[i].run_speed;
+          }
+          else
+          {
+            // todo:skidding
+            // todo:dashing
+            cur_action=ACTION_STAND_BY_GROUND;
+            action_frames=0;
+          }
+        }
+          
+        // Todo:limit start states for crouching.
+        if(actor_intent[i].crouch 
+           && cur_action!=ACTION_CROUCHING_GROUND)
+        {
+          cur_action=ACTION_CROUCHING_GROUND;
+          action_frames=0;
+        }
+        if(cur_action==ACTION_CROUCHING_GROUND
+          && actor_intent[i].crouch!=true)
+        {
+          cur_action=ACTION_STAND_BY_GROUND;
+          action_frames=0;
         }
         // Always reset double jump frames on ground.
+        // todo: move to state transitions off from ground.
         a_state->double_jumps_left=1;
+          
         if(actor_intent[i].jump)
         {
-          a_state->jump_crouch_frames++;
-          if (a_state->jump_crouch_frames>=6)
+          if(cur_action!=ACTION_CROUCHING_TO_JUMP_GROUND)
+          {
+            cur_action=ACTION_CROUCHING_TO_JUMP_GROUND;
+            action_frames=0;
+          }
+          // crouchin here unconditionally.
+          if (action_frames>=actor_params[i].jump_crouch_frames)
           {
             // Do normal jump
             actor_speedy[i] = -actor_params[i].jump_force;
             actor_intent[i].jump = false;
-            a_state->jump_crouch_frames = 0;
+            cur_action = ACTION_STAND_BY_AIR;
+            action_frames=0;
           }
         }
-        else if (a_state->jump_crouch_frames>0) // Do short jump when cancelling jump early
+        else if (cur_action==ACTION_CROUCHING_TO_JUMP_GROUND) // Do short jump when cancelling jump early
         {
           actor_speedy[i] = -actor_params[i].short_hop_force;
           actor_intent[i].jump = false;
-          a_state->jump_crouch_frames = 0;
+          cur_action = ACTION_STAND_BY_AIR;
+          action_frames=0;
         }
-        
-        // count walk frames
-        if(a_state->direction_changed || actor_speedx[i]==0)
-        {
-          a_state->walk_frames = 0;
-        }
-        else
-        {
-          a_state->walk_frames=MIN(++a_state->walk_frames,250);
-        }
+        // Note: state might not be on ground anymore.
       }
       
       // Inertia
       // TODO: make state specific.
       actor_speedx[i]= actor_speedx[i]*4/5;
+      a_state->current_action=cur_action;
+      a_state->current_action_frames=MIN(++action_frames,255);
         
     }
     
     // Actor Physics
     
     for (i=0; i<NUM_ACTORS; i++) {
+      enum action_state cur_action;
+      bool on_ground;
+      bool action_on_ground;
       short int actorxf;
       short int actoryf;
       a_state=&actor_state[i];
@@ -664,7 +755,7 @@ void main(void) {
       
       // Collisions
       
-      a_state->on_ground = false;
+      on_ground = false;
       for(j=0;j<p_count;++j)
       {
         bool falling;
@@ -676,23 +767,56 @@ void main(void) {
         actor_feet_x=actor_x[i]+8;
         actor_feet_y=actor_y[i]+17;
         speed_y_in_pixels=(actor_speedy[i]>>8);
-        skip_due_to_fall_through=(!a_state->crouching || cur_platform->can_fall_through);
-        
+        skip_due_to_fall_through=(a_state->current_action==ACTION_CROUCHING_GROUND && cur_platform->can_fall_through);
         falling=actor_speedy[i] >= 0;
-        if(falling
-           && actor_feet_y>=cur_platform->y1
+        /*if(cur_platform->has_edge)
+        {
+          byte grab_box_x1;
+          byte grab_box_x2;
+          byte grab_box_y;
+          grab_box_x1=actor_feet_x-6;
+          grab_box_x2=actor_feet_x+6;
+          grab_box_y=actor_y[i]+1;
+          //todo:take direction into account
+          //todo: collide with edge
+          if(actor_feet_y>=cur_platform->y1
            && actor_feet_y<=cur_platform->y2
            && actor_feet_x>cur_platform->x1
            && actor_feet_x<cur_platform->x2
-           && skip_due_to_fall_through
+            )
+          {
+            //todo: grab
+          }
+        }*/
+        if(falling
+           && actor_feet_y>=cur_platform->y1-speed_y_in_pixels
+           && actor_feet_y<=cur_platform->y2
+           && actor_feet_x>cur_platform->x1
+           && actor_feet_x<cur_platform->x2
+           && !skip_due_to_fall_through
           )
         {
           actor_y[i] = cur_platform->y1-17;
           actor_speedy[i] = 0;
           actor_yf[i] = 0;
-          a_state->on_ground = true;
+          on_ground = true;
         }
       }
+      
+      action_on_ground = ON_GROUND(a_state->current_action);
+      if(!on_ground && action_on_ground) 
+      { // fall off edge
+        a_state->current_action = ACTION_STAND_BY_AIR;
+        a_state->current_action_frames=0;
+        action_on_ground=false;
+      }
+      else if(on_ground && !action_on_ground)
+      { // fall on ground
+        a_state->current_action = ACTION_STAND_BY_GROUND;
+        a_state->current_action_frames=0;
+        action_on_ground=true;
+      }
+      cur_action=a_state->current_action;
       
       // Moving left/right
       a_state->direction_changed = false;
@@ -722,19 +846,21 @@ void main(void) {
       
       // Select sprite
       // TODO: deduplicate
+      // todo: improve facing difection.
       if(actor_speedx[i]>0)//right
       {
-        if(a_state->on_ground)
+        if(action_on_ground)
         {
-          if(a_state->running)
+          if(cur_action==ACTION_RUNNING_GROUND)
           {
             actor_sprite[i] = &char1right_run;
           }
-          else if(a_state->crouching)
+          else if(cur_action==ACTION_CROUCHING_GROUND)
           {
             actor_sprite[i] = &char1right_crouch;
           }
-          else if(a_state->jump_crouch_frames==0)
+          else if(cur_action==ACTION_STAND_BY_GROUND 
+                  || cur_action==ACTION_WALKING_GROUND)
           {
             actor_sprite[i] = &char1right;
           }
@@ -758,17 +884,19 @@ void main(void) {
       }
       else //left
       {
-        if(a_state->on_ground)
+        if(action_on_ground)
         {
-          if(a_state->running)
+          if(cur_action==ACTION_RUNNING_GROUND)
           {
             actor_sprite[i] = &char1left_run;
           }
-          else if(a_state->crouching)
+          else if(cur_action==ACTION_CROUCHING_GROUND
+                 || cur_action==ACTION_CROUCHING_TO_JUMP_GROUND)
           {
             actor_sprite[i] = &char1left_crouch;
           }
-          else if(a_state->jump_crouch_frames==0)
+          else if(cur_action==ACTION_STAND_BY_GROUND 
+                  || cur_action==ACTION_WALKING_GROUND)
           {
             actor_sprite[i] = &char1left;
           }
@@ -792,8 +920,6 @@ void main(void) {
     }
     
     
-    
-    
     // Update Sprites
 
     // start with OAMid/sprite 0
@@ -811,12 +937,16 @@ void main(void) {
     // loop to count extra time in frame
     {
       int i;
-      for(i=0;i<150;++i)
+      for(i=0;i<200;++i)
       {
       }
     }
     
     ppu_wait_nmi();
+    
+    //player intents/actions
+    print_state(0,NTADR_A(1,27));
+    print_state(1,NTADR_A(8,27));
     
     // detect frame drops
     newclock = nesclock();
@@ -825,7 +955,9 @@ void main(void) {
       pal_col(0,0x16);
     }
     else
+    {
       pal_col(0,0x1c);
+    }
     clock=newclock;
     
   }
