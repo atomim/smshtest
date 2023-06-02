@@ -9,6 +9,8 @@ for the nametable. We copy it from an array in ROM to video RAM.
 // include CC65 NES Header (PPU)
 #include <nes.h>
 
+//#defi ne CFGFILE test
+
 // link the pattern table into CHR ROM
 //#link "chr_generic.s"
 
@@ -309,11 +311,47 @@ void reset_level_and_bg()
 
 void print_state(byte player,short int adr)
 {
-  byte cur_action=actor_state[player].current_action;
+  enum action_state cur_action=actor_state[player].current_action;
   vram_adr(adr);
-  
+  vram_fill(0x30+cur_action, 1);
+  vram_write(":",1);
+  switch(cur_action)
+  {
+    case ACTION_STAND_BY_GROUND:
+      vram_write("STAND",5);
+      break;
+    case ACTION_STAND_BY_AIR:
+      vram_write("AIR",3);
+      break;
+    case ACTION_CROUCHING_TO_JUMP_GROUND:
+      vram_write("C1",2);
+      break;
+    case ACTION_CROUCHING_GROUND:
+      vram_write("C2",2);
+      break;
+    //ACTION_HANGING_GROUND=4, //todo
+    case ACTION_WALKING_GROUND:
+      vram_write("WALK",4);
+      break;
+    case ACTION_RUNNING_GROUND:
+      vram_write("RUN",3);
+      break;
+    case ACTION_DASHING_GROUND:
+      vram_write("DASH",4);
+      break;
+    //ACTION_TURNING_AROUND_GROUND=8, // todo
+    //ACTION_STOPPING_GROUND=9, // todo
+    case ACTION_FAST_FALLING_AIR:
+      vram_write("FALL",4);
+      break;
+    //ACTION_ATTACK_GROUND=11, // todo
+    //ACTION_ATTACK_AIR=12 // todo
+    default:
+      break;
+  }
+    
   //vram_write("Press START to stop Demo mode.", 30);
-  vram_fill(0x30+actor_state[player].current_action, 1);
+  vram_write("    ", 3);
   vram_adr(NTADR_A(0,0));
 }
 
@@ -462,13 +500,64 @@ void initialize_player(byte num, byte type, byte x, byte y)
 }
 
 
+char clock=0;
+void __fastcall__ irq_nmi_callback(void) 
+{
+    unsigned char newclock;
+  
+  
+  print_state(0,NTADR_A(1,27));
+  //print_state(1,NTADR_A(16,27));
+
+  newclock = nesclock();
+  if(newclock-clock>1)
+  {
+    __asm__("lda $2002");
+    __asm__("lda #$3F");
+    __asm__("sta $2006");
+    __asm__("lda #$00");
+    __asm__("sta $2006");
+    __asm__("lda #$16");
+    __asm__("sta $2007");
+    //pal_col(0,0x16);
+
+  }
+  else
+  {
+    __asm__("lda $2002");
+    __asm__("lda #$3F");
+    __asm__("sta $2006");
+    __asm__("lda #$00");
+    __asm__("sta $2006");
+    __asm__("lda #$1c");
+    __asm__("sta $2007");
+    //pal_col(0,0x1c);
+  }
+
+  //__asm__("lda #$00");
+  //__asm__("sta $2005");
+  //__asm__("lda #$ff");
+  //__asm__("sta $2005");
+  
+  PPU.control=0b11000000;
+  PPU.scroll=0x00;
+  PPU.scroll=0x02;
+  
+  //PPU.control=0x03;
+  //scroll(0,0);
+  clock=newclock;
+    
+}
+
+
+
 // main function, run after console reset
 void main(void) {
   char pad = 0;
   char last_pad = 0;
   char pad_rising = 0;
   char pad_falling =0;
-  char clock=0;
+
   bool demo_mode_on = true;
   
   // set background palette colors
@@ -479,7 +568,6 @@ void main(void) {
   
   // Draw bg and set platforms data.
   reset_level_and_bg();
-  
   //
   if (demo_mode_on)
   {
@@ -487,6 +575,7 @@ void main(void) {
     vram_write("Press START to stop Demo mode.", 30);
   }
 
+  nmi_set_callback(irq_nmi_callback);
   // enable PPU rendering (turn on screen)
   ppu_on_all();
 
@@ -494,7 +583,7 @@ void main(void) {
   while (1) {
     unsigned char i, j; // actor index
     unsigned char oam_id; // sprite ID
-    unsigned char newclock;
+    
     
     
     // Controls
@@ -937,28 +1026,16 @@ void main(void) {
     // loop to count extra time in frame
     {
       int i;
-      for(i=0;i<200;++i)
+      for(i=0;i<120;++i)
       {
       }
     }
     
     ppu_wait_nmi();
-    
     //player intents/actions
-    print_state(0,NTADR_A(1,27));
-    print_state(1,NTADR_A(8,27));
+    
     
     // detect frame drops
-    newclock = nesclock();
-    if(newclock-clock>1)
-    {
-      pal_col(0,0x16);
-    }
-    else
-    {
-      pal_col(0,0x1c);
-    }
-    clock=newclock;
-    
+
   }
 }
