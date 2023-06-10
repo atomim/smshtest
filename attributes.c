@@ -115,9 +115,16 @@ const unsigned char name[]={\
 // !optimize platform iteration and access (day 3)
 // !warn on frame drops (day 3)
 // !optimize player iteration(day 2.5)
-// *optimize intent access
-// *optimize physics iteration
-// *add sprite for edge sway
+// !optimize intent access(day 3.5)
+// !optimize physics iteration(day 3.5)
+// !add sprite for edge sway (day 3)
+// *support edge sway
+// !add debug print (day 4)
+// *optimize debug print
+// *add frame drop detection (day 3.5)
+// !add vegetation
+// *add bg decoration
+// 
 
 
 DEF_METASPRITE_2x2(char1right,0xd8,true);
@@ -141,6 +148,9 @@ DEF_METASPRITE_2x2_FLIP(char1left_dash,0xe8,true);
 DEF_METASPRITE_2x2(char1right_ledge,0xf0,true);
 DEF_METASPRITE_2x2_FLIP(char1left_ledge,0xf0,true);
 
+DEF_METASPRITE_2x2(char1right_sway,0xf4,true);
+DEF_METASPRITE_2x2_FLIP(char1left_sway,0xf4,true);
+
 
 
 void p(byte type, byte x, byte y, byte len)
@@ -151,6 +161,19 @@ void p(byte type, byte x, byte y, byte len)
   vram_fill(0x05, 1);
   vram_fill(0x04, len-4);
   vram_fill(0x06, 1);
+  if(type==0)
+  {
+    int i;
+    int pos=0;
+    int max=len>>1;
+    for(i=0;i<max;++i)
+    {
+      pos+=1+rand()%0x03;
+      if(pos>len)pos-=len;
+      vram_adr(NTADR_A(x+pos,y-1));
+      vram_fill(0x92+rand()%2, 1);
+    }
+  }
 }
 
 // Todo: convert to defines
@@ -189,9 +212,10 @@ struct state{
   //byte running;
   byte current_action_frames;
   byte double_jumps_left;
+  bool on_edge;
 };
 struct intent{
-  bool left;
+  bool left; //todo: add directional intent and apply only with compatible actions
   bool right;
   bool jump;
   //bool short_jump; // Cancel jump by releasing during crouch.
@@ -227,7 +251,7 @@ struct platform{
   byte has_edge;
 };
 
-#define NUM_ACTORS 2
+#define NUM_ACTORS 3
 #define NUM_PLATFORMS 4
 
 byte actor_x[NUM_ACTORS];      // Position
@@ -370,6 +394,7 @@ void simulate_player(unsigned char num)
   signed char id_right=-1;
   signed char id_left=-1;
   //unsigned char closest_platform = 0;
+  // find closest platforms for AI
   for(j=0;j<p_count;++j)
   {
     bool isLeft;
@@ -434,9 +459,13 @@ void simulate_player(unsigned char num)
       case 7:
         actor_intent[num].fast_fall = true;
         actor_intent[num].crouch = true;
-        break;
+        //break;
       case 8:
       case 9:
+        actor_intent[num].crouch = true;
+        actor_intent[num].left = false;
+        actor_intent[num].right = false;
+        break;
       case 10:
         actor_intent[num].fast_fall = false;
         actor_intent[num].crouch = false;
@@ -448,6 +477,7 @@ void simulate_player(unsigned char num)
       case 15:
       case 16:
       case 17:
+        // save when falling off
         if(id_under==-1)
         {
           if(id_left!=-1)
@@ -503,60 +533,29 @@ void initialize_player(byte num, byte type, byte x, byte y)
 char clock=0;
 void __fastcall__ irq_nmi_callback(void) 
 {
-    unsigned char newclock;
-  
   
   print_state(0,NTADR_A(1,27));
-  //print_state(1,NTADR_A(16,27));
-
-  newclock = nesclock();
-  if(newclock-clock>1)
-  {
-    __asm__("lda $2002");
-    __asm__("lda #$3F");
-    __asm__("sta $2006");
-    __asm__("lda #$00");
-    __asm__("sta $2006");
-    __asm__("lda #$16");
-    __asm__("sta $2007");
-    //pal_col(0,0x16);
-
-  }
-  else
-  {
-    __asm__("lda $2002");
-    __asm__("lda #$3F");
-    __asm__("sta $2006");
-    __asm__("lda #$00");
-    __asm__("sta $2006");
-    __asm__("lda #$1c");
-    __asm__("sta $2007");
-    //pal_col(0,0x1c);
-  }
-
   //__asm__("lda #$00");
   //__asm__("sta $2005");
   //__asm__("lda #$ff");
   //__asm__("sta $2005");
   
-  PPU.control=0b11000000;
-  PPU.scroll=0x00;
-  PPU.scroll=0x02;
   
   //PPU.control=0x03;
   //scroll(0,0);
-  clock=newclock;
-    
+
 }
 
 
 
 // main function, run after console reset
 void main(void) {
+  unsigned char newclock=0;
   char pad = 0;
   char last_pad = 0;
   char pad_rising = 0;
   char pad_falling =0;
+  
 
   bool demo_mode_on = true;
   
@@ -565,6 +564,9 @@ void main(void) {
 
   initialize_player(0,0,54+10,143);
   initialize_player(1,0,128,99);
+  #ifdef NUM_ACTORS>2
+  initialize_player(2,0,128,99);
+  #endif
   
   // Draw bg and set platforms data.
   reset_level_and_bg();
@@ -776,7 +778,7 @@ void main(void) {
             cur_action=ACTION_CROUCHING_TO_JUMP_GROUND;
             action_frames=0;
           }
-          // crouchin here unconditionally.
+          // crouching here unconditionally.
           if (action_frames>=actor_params[i].jump_crouch_frames)
           {
             // Do normal jump
@@ -809,6 +811,7 @@ void main(void) {
     for (i=0; i<NUM_ACTORS; i++) {
       enum action_state cur_action;
       bool on_ground;
+      bool on_edge;
       bool action_on_ground;
       short int actorxf;
       short int actoryf;
@@ -842,12 +845,14 @@ void main(void) {
       actor_xf[i] = actorxf;
       actor_yf[i] = actoryf;
       
-      // Collisions
+      // Collisions and related calculation
       
       on_ground = false;
+      on_edge = false;
       for(j=0;j<p_count;++j)
       {
         bool falling;
+        bool on_platform;
         byte actor_feet_x;
         byte actor_feet_y;
         byte speed_y_in_pixels;
@@ -877,11 +882,14 @@ void main(void) {
             //todo: grab
           }
         }*/
-        if(falling
-           && actor_feet_y>=cur_platform->y1-speed_y_in_pixels
+        // normal collision
+        on_platform=
+           actor_feet_y>=cur_platform->y1-speed_y_in_pixels
            && actor_feet_y<=cur_platform->y2
            && actor_feet_x>cur_platform->x1
-           && actor_feet_x<cur_platform->x2
+           && actor_feet_x<cur_platform->x2;
+        if(falling
+           && on_platform
            && !skip_due_to_fall_through
           )
         {
@@ -890,7 +898,18 @@ void main(void) {
           actor_yf[i] = 0;
           on_ground = true;
         }
+        // todo: split condition to improve perf
+        // on_edge
+        if(on_platform
+           && ((actor_feet_x<cur_platform->x1+8 && a_state->moving_left) 
+               || (actor_feet_x>cur_platform->x2-8&& a_state->moving_right))
+           )
+        {
+          on_edge=true;
+        }
       }
+      a_state->on_edge=on_edge;
+      
       
       action_on_ground = ON_GROUND(a_state->current_action);
       if(!on_ground && action_on_ground) 
@@ -951,7 +970,14 @@ void main(void) {
           else if(cur_action==ACTION_STAND_BY_GROUND 
                   || cur_action==ACTION_WALKING_GROUND)
           {
-            actor_sprite[i] = &char1right;
+            if(a_state->on_edge)
+            {
+              actor_sprite[i] = &char1right_sway;
+            }
+            else
+            {
+              actor_sprite[i] = &char1right;
+            }
           }
           else
           {
@@ -987,7 +1013,14 @@ void main(void) {
           else if(cur_action==ACTION_STAND_BY_GROUND 
                   || cur_action==ACTION_WALKING_GROUND)
           {
-            actor_sprite[i] = &char1left;
+            if(a_state->on_edge)
+            {
+              actor_sprite[i] = &char1left_sway;
+            }
+            else
+            {
+              actor_sprite[i] = &char1left;
+            }
           }
           else
           {
@@ -1026,7 +1059,7 @@ void main(void) {
     // loop to count extra time in frame
     {
       int i;
-      for(i=0;i<120;++i)
+      for(i=0;i<30;++i)
       {
       }
     }
@@ -1036,6 +1069,37 @@ void main(void) {
     
     
     // detect frame drops
+
+    newclock = nesclock();
+    if(newclock-clock>1)
+    {
+      // Todo: replace by PPU accessor.
+      __asm__("lda $2002");
+      __asm__("lda #$3F");
+      __asm__("sta $2006");
+      __asm__("lda #$00");
+      __asm__("sta $2006");
+      __asm__("lda #$16");
+      __asm__("sta $2007");
+      //pal_col(0,0x16);
+
+    }
+    else
+    {
+      __asm__("lda $2002");
+      __asm__("lda #$3F");
+      __asm__("sta $2006");
+      __asm__("lda #$00");
+      __asm__("sta $2006");
+      __asm__("lda #$1c");
+      __asm__("sta $2007");
+      //pal_col(0,0x1c);
+    }
+    clock=newclock;
+
+    PPU.control=0b11000000;
+    PPU.scroll=0x00;
+    PPU.scroll=0x02;
 
   }
 }
