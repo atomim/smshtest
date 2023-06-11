@@ -35,15 +35,38 @@ const char PALETTE[33] = {
   0x0F,0x13,0x10,0x00,	// background palette 2
   0x0F,0x16,0x10,0x00,       // background palette 3
     
-  0x0D,0x17,0x20,0x00,	// sprite palette 0
-  0x0D,0x17,0x20,0x00,	// sprite palette 1
-  0x0D,0x17,0x20,0x00,	// sprite palette 2
-  0x0D,0x27,0x20,0x00	// sprite palette 3
+  0x0D,0x17,0x32,0x00,	// sprite palette 0
+  0x0D,0x17,0x27,0x00,	// sprite palette 1
+  0x0D,0x17,0x29,0x00,	// sprite palette 2
+  0x0D,0x17,0x10,0x00	// sprite palette 3
 
 };
 
 
 #define ATTR 0
+
+#define DEF_METASPRITE_2x2_VARS(name,code)\
+DEF_METASPRITE_2x2(name##_a,code,0)\
+DEF_METASPRITE_2x2(name##_b,code,1)\
+DEF_METASPRITE_2x2(name##_c,code,2)\
+DEF_METASPRITE_2x2(name##_d,code,3)\
+DEF_METASPRITE_2x2_FLIP(name##_a2,code,0)\
+DEF_METASPRITE_2x2_FLIP(name##_b2,code,1)\
+DEF_METASPRITE_2x2_FLIP(name##_c2,code,2)\
+DEF_METASPRITE_2x2_FLIP(name##_d2,code,3)\
+void* name##_sprites[]={\
+  &name##_a\
+  ,&name##_b\
+  ,&name##_c\
+  ,&name##_d\
+  ,&name##_a2\
+  ,&name##_b2\
+  ,&name##_c2\
+  ,&name##_d2};
+  
+
+
+
 
 
 // define a 2x2 metasprite
@@ -126,31 +149,14 @@ const unsigned char name[]={\
 // *add bg decoration
 // 
 
-
-DEF_METASPRITE_2x2(char1right,0xd8,true);
-DEF_METASPRITE_2x2_FLIP(char1left,0xd8,true);
-
-DEF_METASPRITE_2x2(char1right_crouch,0xdc,true);
-DEF_METASPRITE_2x2_FLIP(char1left_crouch,0xdc,true);
-
-DEF_METASPRITE_2x2(char1right_jump,0xe0,true);
-DEF_METASPRITE_2x2_FLIP(char1left_jump,0xe0,true);
-
-DEF_METASPRITE_2x2(char1right_fast_fall,0xe4,true);
-DEF_METASPRITE_2x2_FLIP(char1left_fast_fall,0xe4,true);
-
-DEF_METASPRITE_2x2(char1right_run,0xec,true);
-DEF_METASPRITE_2x2_FLIP(char1left_run,0xec,true);
-
-DEF_METASPRITE_2x2(char1right_dash,0xe8,true);
-DEF_METASPRITE_2x2_FLIP(char1left_dash,0xe8,true);
-
-DEF_METASPRITE_2x2(char1right_ledge,0xf0,true);
-DEF_METASPRITE_2x2_FLIP(char1left_ledge,0xf0,true);
-
-DEF_METASPRITE_2x2(char1right_sway,0xf4,true);
-DEF_METASPRITE_2x2_FLIP(char1left_sway,0xf4,true);
-
+DEF_METASPRITE_2x2_VARS(char1stand,0xd8);
+DEF_METASPRITE_2x2_VARS(char1crouch,0xdc);
+DEF_METASPRITE_2x2_VARS(char1run,0xec);
+DEF_METASPRITE_2x2_VARS(char1jump,0xe0);
+DEF_METASPRITE_2x2_VARS(char1fast_fall,0xe4);
+DEF_METASPRITE_2x2_VARS(char1dash,0xe8);
+DEF_METASPRITE_2x2_VARS(char1ledge,0xf0);
+DEF_METASPRITE_2x2_VARS(char1sway,0xf4);
 
 
 void p(byte type, byte x, byte y, byte len)
@@ -322,6 +328,7 @@ void reset_level_and_bg()
   
   // Draw platforms BG
   p(0,8,20,16);addp(0,8,20,16);
+  //p(1,8,20,16);addp(1,8,20,16);
   p(1,10,17,4);addp(1,10,17,4);
   p(1,18,17,4);addp(1,18,17,4);
   p(1,14,14,4);addp(1,14,14,4);
@@ -336,56 +343,103 @@ void reset_level_and_bg()
 void print_state(byte player,short int adr)
 {
   enum action_state cur_action=actor_state[player].current_action;
+ 
+  PPU.mask =0x0;
   vram_adr(adr);
-  vram_fill(0x30+cur_action, 1);
-  vram_write(":",1);
+  //vram_fill(0x30+cur_action, 1);
+  //vram_write(":",1);
   switch(cur_action)
   {
     case ACTION_STAND_BY_GROUND:
-      vram_write("STAND",5);
+      vram_write("S",1);
       break;
     case ACTION_STAND_BY_AIR:
-      vram_write("AIR",3);
+      vram_write("A",1);
       break;
     case ACTION_CROUCHING_TO_JUMP_GROUND:
-      vram_write("C1",2);
+      vram_write("C1",1);
       break;
     case ACTION_CROUCHING_GROUND:
-      vram_write("C2",2);
+      vram_write("C2",1);
       break;
     //ACTION_HANGING_GROUND=4, //todo
     case ACTION_WALKING_GROUND:
-      vram_write("WALK",4);
+      vram_write("W",1);
       break;
     case ACTION_RUNNING_GROUND:
-      vram_write("RUN",3);
+      vram_write("R",1);
       break;
     case ACTION_DASHING_GROUND:
-      vram_write("DASH",4);
+      vram_write("D",1);
       break;
     //ACTION_TURNING_AROUND_GROUND=8, // todo
     //ACTION_STOPPING_GROUND=9, // todo
     case ACTION_FAST_FALLING_AIR:
-      vram_write("FALL",4);
+      vram_write("F",1);
       break;
     //ACTION_ATTACK_GROUND=11, // todo
     //ACTION_ATTACK_AIR=12 // todo
     default:
       break;
   }
+  a_intent=&actor_intent[player];
+  vram_write(",",1);
+  if(a_intent->left && a_intent->right)
+  {
+    vram_write("X",1);
+  }
+  else if(a_intent->right)
+  {
+    vram_write("R",1);
+  }
+  else if(a_intent->left)
+  {
+    vram_write("L",1);
+  }
+  else
+  {
+    vram_write(".",1);
+  }
+  if(a_intent->jump)
+  {
+    vram_write("J",1);
+  }
+  else
+  {
+    vram_write(".",1);
+  }
+  if(a_intent->crouch)
+  {
+    vram_write("C",1);
+  }
+  else
+  {
+    vram_write(".",1);
+  }
+  if(a_intent->fast_fall)
+  {
+    vram_write("F",1);
+  }
+  else
+  {
+    vram_write(".",1);
+  }
     
-  //vram_write("Press START to stop Demo mode.", 30);
-  vram_write("    ", 3);
+    
   vram_adr(NTADR_A(0,0));
+  PPU.mask =0b00011110;
+    
 }
+
+char num_ai;
 
 void simulate_player(unsigned char num)
 {
   // TODO: optimize perf
   unsigned int r = rand();
-  unsigned char r128 = r&0x7f;
-  //unsigned char player =(num&0x300>>8); // move outside
-  //if(player==num) // apply on heavy parts or whole logic.
+  
+  // todo: balance chances based on amount of ai's
+  unsigned char r128;
   
   unsigned char j;
   //short int dy=;
@@ -393,6 +447,29 @@ void simulate_player(unsigned char num)
   signed char id_under =-1;
   signed char id_right=-1;
   signed char id_left=-1;
+  
+  
+  if(num_ai==1)
+  {
+    r128 = r&0x7f;
+  }
+  else if(num_ai==2)
+  {
+    r128 = r&0x3f;
+  }
+  else if(num_ai==3)
+  {
+    r128 = r&0x7f;
+    if(r128>0x5f)
+    {
+      r128=0;
+    }
+    else
+    {
+      r128=r128&0x1f;
+    }
+  }
+  
   //unsigned char closest_platform = 0;
   // find closest platforms for AI
   for(j=0;j<p_count;++j)
@@ -427,7 +504,6 @@ void simulate_player(unsigned char num)
     }
 
   }
-  //if(r128<20)
   {
     char i;
     for(i=MIN(20,r128);i>0;--i)
@@ -435,6 +511,8 @@ void simulate_player(unsigned char num)
     }
     switch(r128)
     {
+      case 0:
+        break;
       case 1:
         actor_intent[num].jump = true;
         actor_intent[num].crouch = false;
@@ -459,7 +537,7 @@ void simulate_player(unsigned char num)
       case 7:
         actor_intent[num].fast_fall = true;
         actor_intent[num].crouch = true;
-        //break;
+        break;
       case 8:
       case 9:
         actor_intent[num].crouch = true;
@@ -547,10 +625,10 @@ void __fastcall__ irq_nmi_callback(void)
 }
 
 
-
 // main function, run after console reset
 void main(void) {
   unsigned char newclock=0;
+  unsigned char simulate_i=0;
   char pad = 0;
   char last_pad = 0;
   char pad_rising = 0;
@@ -564,8 +642,11 @@ void main(void) {
 
   initialize_player(0,0,54+10,143);
   initialize_player(1,0,128,99);
-  #ifdef NUM_ACTORS>2
+  #if NUM_ACTORS>2
   initialize_player(2,0,128,99);
+  #endif
+  #if NUM_ACTORS>3
+  initialize_player(3,0,128,99);
   #endif
   
   // Draw bg and set platforms data.
@@ -585,7 +666,6 @@ void main(void) {
   while (1) {
     unsigned char i, j; // actor index
     unsigned char oam_id; // sprite ID
-    
     
     
     // Controls
@@ -610,7 +690,12 @@ void main(void) {
     
     if(demo_mode_on)
     {
-      simulate_player(0);
+      num_ai=NUM_ACTORS;
+      simulate_player(simulate_i);
+      simulate_i+=1;
+      if(simulate_i>NUM_ACTORS)
+        simulate_i=0;
+    
     } 
     else
     {
@@ -639,10 +724,12 @@ void main(void) {
       actor_intent[0].fast_fall = pad & PAD_DOWN;
       actor_intent[0].crouch = pad & PAD_DOWN;
 
+      num_ai=NUM_ACTORS;
+      simulate_player(simulate_i+1);
+      simulate_i+=1;
+      if(simulate_i>NUM_ACTORS-1)
+        simulate_i=0;
     }
-    
-    // Simulate player 2 (not affected by demo mode)
-    simulate_player(1);
     
     
     // Actor State and intent physics
@@ -810,6 +897,7 @@ void main(void) {
     
     for (i=0; i<NUM_ACTORS; i++) {
       enum action_state cur_action;
+      unsigned char sprite_var;
       bool on_ground;
       bool on_edge;
       bool action_on_ground;
@@ -957,88 +1045,52 @@ void main(void) {
       // todo: improve facing difection.
       if(actor_speedx[i]>0)//right
       {
-        if(action_on_ground)
-        {
-          if(cur_action==ACTION_RUNNING_GROUND)
-          {
-            actor_sprite[i] = &char1right_run;
-          }
-          else if(cur_action==ACTION_CROUCHING_GROUND)
-          {
-            actor_sprite[i] = &char1right_crouch;
-          }
-          else if(cur_action==ACTION_STAND_BY_GROUND 
-                  || cur_action==ACTION_WALKING_GROUND)
-          {
-            if(a_state->on_edge)
-            {
-              actor_sprite[i] = &char1right_sway;
-            }
-            else
-            {
-              actor_sprite[i] = &char1right;
-            }
-          }
-          else
-          {
-            // Todo: handle jump crouch as part of animation instead of last case
-            actor_sprite[i] = &char1right_crouch;
-          }
-        }
-        else
-        {
-          if(actor_intent[i].fast_fall) // Todo: use state instead of intent.
-          {
-            actor_sprite[i] = &char1right_fast_fall;
-          }
-          else
-          {
-            actor_sprite[i] = &char1right_jump;
-          }
-        }
+        sprite_var=i;
       }
-      else //left
+      else
       {
-        if(action_on_ground)
+        sprite_var=i+4;
+      }
+      if(action_on_ground)
+      {
+        if(cur_action==ACTION_RUNNING_GROUND)
         {
-          if(cur_action==ACTION_RUNNING_GROUND)
+          actor_sprite[i] = char1run_sprites[sprite_var];
+        }
+        else if(cur_action==ACTION_CROUCHING_GROUND)
+        {
+          actor_sprite[i] = char1crouch_sprites[sprite_var];
+        }
+        else if(cur_action==ACTION_STAND_BY_GROUND 
+                || cur_action==ACTION_WALKING_GROUND)
+        {
+          if(a_state->on_edge)
           {
-            actor_sprite[i] = &char1left_run;
-          }
-          else if(cur_action==ACTION_CROUCHING_GROUND
-                 || cur_action==ACTION_CROUCHING_TO_JUMP_GROUND)
-          {
-            actor_sprite[i] = &char1left_crouch;
-          }
-          else if(cur_action==ACTION_STAND_BY_GROUND 
-                  || cur_action==ACTION_WALKING_GROUND)
-          {
-            if(a_state->on_edge)
-            {
-              actor_sprite[i] = &char1left_sway;
-            }
-            else
-            {
-              actor_sprite[i] = &char1left;
-            }
+            actor_sprite[i] = char1sway_sprites[sprite_var];
           }
           else
           {
-            actor_sprite[i] = &char1left_crouch;
+            actor_sprite[i] = char1stand_sprites[sprite_var];
           }
         }
         else
         {
-          if(actor_intent[i].fast_fall) // Todo: use state instead of intent.
-          {
-            actor_sprite[i] = &char1left_fast_fall;
-          }
-          else
-          {
-            actor_sprite[i] = &char1left_jump;
-          }
+          // Todo: handle jump crouch as part of animation instead of last case
+          actor_sprite[i] = char1crouch_sprites[sprite_var];
         }
       }
+      else
+      {
+        if(actor_intent[i].fast_fall) // Todo: use state instead of intent.
+        {
+          actor_sprite[i] = char1fast_fall_sprites[sprite_var];
+        }
+        else
+        {
+          actor_sprite[i] = char1jump_sprites[sprite_var];
+        }
+      }
+    
     }
     
     
@@ -1058,8 +1110,8 @@ void main(void) {
     
     // loop to count extra time in frame
     {
-      int i;
-      for(i=0;i<30;++i)
+      //int i;
+      //for(i=0;i<6225;++i)
       {
       }
     }
@@ -1069,7 +1121,8 @@ void main(void) {
     
     
     // detect frame drops
-
+    PPU.mask =0x0;
+    
     newclock = nesclock();
     if(newclock-clock>1)
     {
@@ -1100,6 +1153,8 @@ void main(void) {
     PPU.control=0b11000000;
     PPU.scroll=0x00;
     PPU.scroll=0x02;
+    PPU.mask =0b00011110;
+    
 
   }
 }
