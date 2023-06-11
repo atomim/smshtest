@@ -279,6 +279,8 @@ struct state* a_state;
 struct intent* a_intent;
 struct params* a_params;
 struct platform* cur_platform;
+short int* a_speed_x;
+short int* a_speed_y;
 #pragma bss-name (pop)
 #pragma data-name(pop)
 
@@ -616,7 +618,7 @@ char clock=0;
 void __fastcall__ irq_nmi_callback(void) 
 {
   
-  //print_state(0,NTADR_A(1,27));
+  print_state(0,NTADR_A(1,27));
   //__asm__("lda #$00");
   //__asm__("sta $2005");
   //__asm__("lda #$ff");
@@ -743,7 +745,15 @@ void main(void) {
       enum action_state cur_action;
       bool on_ground;
       byte action_frames;
+      bool on_edge;
+      short int actorxf;
+      short int actoryf;
+      
       a_state=&actor_state[i];
+      a_intent=&actor_intent[i];
+      a_params=&actor_params[i];
+      a_speed_x=&actor_speedx[i];
+      a_speed_y=&actor_speedy[i];
       cur_action=a_state->current_action;
       action_frames=a_state->current_action_frames;
       on_ground=ON_GROUND(cur_action);
@@ -752,38 +762,38 @@ void main(void) {
       if (!on_ground) // on air
       {
         // Reset crouch intent on air.
-        actor_intent[i].crouch = false;
+        a_intent->crouch = false;
         // Fall speed
-      	actor_speedy[i] +=actor_params[i].fall_force; 
+      	*a_speed_y +=a_params->fall_force; 
         
-        if(actor_intent[i].fast_fall && actor_speedy[i]>0)
+        if(a_intent->fast_fall && *a_speed_y>0)
         {
-          actor_speedy[i] = actor_params[i].fast_fall;
+          *a_speed_y = a_params->fast_fall;
         }
         else
         {
-          actor_speedy[i] = MIN(actor_speedy[i],actor_params[i].fall_limit);
+          *a_speed_y = MIN(*a_speed_y,a_params->fall_limit);
         }
         // jump
-        if(actor_intent[i].jump)
+        if(a_intent->jump)
         {
           if(a_state->double_jumps_left>0)
           {
-            actor_speedy[i] = -actor_params[i].jump_force; 
+            *a_speed_y = -a_params->jump_force; 
             a_state->double_jumps_left-=1;
           }
-          actor_intent[i].jump = false;
+          a_intent->jump = false;
         }
         
         if(cur_action==ACTION_STAND_BY_AIR)
         {
-          if(actor_intent[i].left)
+          if(a_intent->left)
             {
-              actor_speedx[i]=-actor_params[i].run_speed;
+              *a_speed_x=-a_params->run_speed;
             }
-            else if(actor_intent[i].right)
+            else if(a_intent->right)
             {
-              actor_speedx[i]=actor_params[i].run_speed;
+              *a_speed_x=a_params->run_speed;
             }
           // todo:skidding
           // todo:dashing
@@ -792,11 +802,11 @@ void main(void) {
       else // on ground
       {
         // Reset fast fall intent on ground. Todo:move after input.
-        actor_intent[i].fast_fall=false;
+        a_intent->fast_fall=false;
         
         if(cur_action==ACTION_STAND_BY_GROUND)
         {
-          if(actor_intent[i].left || actor_intent[i].right)
+          if(a_intent->left || a_intent->right)
           {
             cur_action=ACTION_WALKING_GROUND;
             action_frames=0;
@@ -804,7 +814,7 @@ void main(void) {
         }
         if(cur_action==ACTION_WALKING_GROUND)
         {
-          if(action_frames>actor_params[i].frames_to_run)
+          if(action_frames>a_params->frames_to_run)
           {
             cur_action=ACTION_RUNNING_GROUND;
             action_frames=0;
@@ -812,29 +822,29 @@ void main(void) {
           else
           {
             
-            if(a_state->direction_changed || actor_speedx[i]==0)
+            if(a_state->direction_changed || *a_speed_x==0)
             {
               action_frames=0;
             }
-            if(actor_intent[i].left)
+            if(a_intent->left)
             {
-              actor_speedx[i]=-actor_params[i].walk_speed;
+              *a_speed_x=-a_params->walk_speed;
             }
-            else if(actor_intent[i].right)
+            else if(a_intent->right)
             {
-              actor_speedx[i]=actor_params[i].walk_speed;
+              *a_speed_x=a_params->walk_speed;
             }
           }
         }
         if(cur_action==ACTION_RUNNING_GROUND)
         {
-          if(actor_intent[i].left)
+          if(a_intent->left)
           {
-            actor_speedx[i]=-actor_params[i].run_speed;
+            *a_speed_x=-a_params->run_speed;
           }
-          else if(actor_intent[i].right)
+          else if(a_intent->right)
           {
-            actor_speedx[i]=actor_params[i].run_speed;
+            *a_speed_x=a_params->run_speed;
           }
           else
           {
@@ -846,14 +856,14 @@ void main(void) {
         }
           
         // Todo:limit start states for crouching.
-        if(actor_intent[i].crouch 
+        if(a_intent->crouch 
            && cur_action!=ACTION_CROUCHING_GROUND)
         {
           cur_action=ACTION_CROUCHING_GROUND;
           action_frames=0;
         }
         if(cur_action==ACTION_CROUCHING_GROUND
-          && actor_intent[i].crouch!=true)
+          && a_intent->crouch!=true)
         {
           cur_action=ACTION_STAND_BY_GROUND;
           action_frames=0;
@@ -862,7 +872,7 @@ void main(void) {
         // todo: move to state transitions off from ground.
         a_state->double_jumps_left=1;
           
-        if(actor_intent[i].jump)
+        if(a_intent->jump)
         {
           if(cur_action!=ACTION_CROUCHING_TO_JUMP_GROUND)
           {
@@ -870,19 +880,19 @@ void main(void) {
             action_frames=0;
           }
           // crouching here unconditionally.
-          if (action_frames>=actor_params[i].jump_crouch_frames)
+          if (action_frames>=a_params->jump_crouch_frames)
           {
             // Do normal jump
-            actor_speedy[i] = -actor_params[i].jump_force;
-            actor_intent[i].jump = false;
+            *a_speed_y = -a_params->jump_force;
+            a_intent->jump = false;
             cur_action = ACTION_STAND_BY_AIR;
             action_frames=0;
           }
         }
         else if (cur_action==ACTION_CROUCHING_TO_JUMP_GROUND) // Do short jump when cancelling jump early
         {
-          actor_speedy[i] = -actor_params[i].short_hop_force;
-          actor_intent[i].jump = false;
+          *a_speed_y = -a_params->short_hop_force;
+          a_intent->jump = false;
           cur_action = ACTION_STAND_BY_AIR;
           action_frames=0;
         }
@@ -891,25 +901,25 @@ void main(void) {
       
       // Inertia
       // TODO: make state specific.
-      actor_speedx[i]= actor_speedx[i]*4/5;
+      *a_speed_x= *a_speed_x*4/5;
       a_state->current_action=cur_action;
       a_state->current_action_frames=MIN(++action_frames,255);
         
-    }
+    //}
     
     // Actor Physics
     
-    for (i=0; i<NUM_ACTORS; i++) {
-      enum action_state cur_action;
-      unsigned char sprite_var;
-      bool on_ground;
-      bool on_edge;
+    //for (i=0; i<NUM_ACTORS; i++) {
+      {
+      
+      byte speed_y_in_pixels;
       bool action_on_ground;
-      short int actorxf;
-      short int actoryf;
-      a_state=&actor_state[i];
-      actorxf = actor_xf[i]+actor_speedx[i];
-      actoryf = actor_yf[i]+actor_speedy[i];
+      unsigned char sprite_var;
+      speed_y_in_pixels=(*a_speed_y>>8);
+      
+      //a_state=&actor_state[i];
+      actorxf = actor_xf[i]+*a_speed_x;
+      actoryf = actor_yf[i]+*a_speed_y;
       // TODO: no loops here.
       while(actorxf>=255)
       {
@@ -947,12 +957,10 @@ void main(void) {
         bool on_platform;
         byte actor_feet_x;
         byte actor_feet_y;
-        byte speed_y_in_pixels;
         bool skip_due_to_fall_through;
         cur_platform=&platforms[j];
         actor_feet_x=actor_x[i]+8;
         actor_feet_y=actor_y[i]+17;
-        speed_y_in_pixels=(actor_speedy[i]>>8);
         skip_due_to_fall_through=(a_state->current_action==ACTION_CROUCHING_GROUND && cur_platform->can_fall_through);
         falling=actor_speedy[i] >= 0;
         /*if(cur_platform->has_edge)
@@ -1020,7 +1028,7 @@ void main(void) {
       
       // Moving left/right
       a_state->direction_changed = false;
-      if(actor_speedx[i]>0)
+      if(*a_speed_x>0)
       {
         if(a_state->moving_right==false)
         {
@@ -1029,14 +1037,14 @@ void main(void) {
         a_state->moving_right=true;
         a_state->moving_left=false;
       }
-      else if(actor_speedx[i]<0)
+      else if(*a_speed_x<0)
       {
         if(a_state->moving_left==false)
         {
           a_state->direction_changed = true;
         }
-        actor_state[i].moving_left=true;
-        actor_state[i].moving_right=false;
+        a_state->moving_left=true;
+        a_state->moving_right=false;
       }
       else
       {
@@ -1094,7 +1102,7 @@ void main(void) {
           actor_sprite[i] = char1jump_sprites[sprite_var];
         }
       }
-    
+      }
     }
     
     
@@ -1114,8 +1122,8 @@ void main(void) {
     
     // loop to count extra time in frame
     {
-      //int i;
-      //for(i=0;i<6225;++i)
+      int i;
+      for(i=0;i<9;++i)
       {
       }
     }
