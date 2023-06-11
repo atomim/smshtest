@@ -38,7 +38,7 @@ const char PALETTE[33] = {
   0x0D,0x17,0x32,0x00,	// sprite palette 0
   0x0D,0x17,0x27,0x00,	// sprite palette 1
   0x0D,0x17,0x29,0x00,	// sprite palette 2
-  0x0D,0x17,0x10,0x00	// sprite palette 3
+  0x0D,0x17,0x26,0x00	// sprite palette 3
 
 };
 
@@ -257,7 +257,7 @@ struct platform{
   byte has_edge;
 };
 
-#define NUM_ACTORS 3
+#define NUM_ACTORS 4
 #define NUM_PLATFORMS 4
 
 byte actor_x[NUM_ACTORS];      // Position
@@ -471,7 +471,7 @@ void simulate_player(unsigned char num)
   }
   else if(num_ai==4)
   {
-    r128 = r&0x19;
+    r128 = r&0x1f;
   }
   
   //unsigned char closest_platform = 0;
@@ -616,7 +616,7 @@ char clock=0;
 void __fastcall__ irq_nmi_callback(void) 
 {
   
-  print_state(0,NTADR_A(1,27));
+  //print_state(0,NTADR_A(1,27));
   //__asm__("lda #$00");
   //__asm__("sta $2005");
   //__asm__("lda #$ff");
@@ -993,8 +993,8 @@ void main(void) {
         // todo: split condition to improve perf
         // on_edge
         if(on_platform
-           && ((actor_feet_x<cur_platform->x1+8 && a_state->moving_left) 
-               || (actor_feet_x>cur_platform->x2-8&& a_state->moving_right))
+           && ((actor_feet_x<cur_platform->x1+16 && a_state->moving_left) 
+               || (actor_feet_x>cur_platform->x2-16&& a_state->moving_right))
            )
         {
           on_edge=true;
