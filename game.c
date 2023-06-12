@@ -1123,7 +1123,7 @@ void main(void) {
     // loop to count extra time in frame
     {
       int i;
-      for(i=0;i<9;++i)
+      for(i=0;i<5;++i)
       {
       }
     }
@@ -1151,14 +1151,17 @@ void main(void) {
     }
     else
     {
-      __asm__("lda $2002");
-      __asm__("lda #$3F");
-      __asm__("sta $2006");
-      __asm__("lda #$00");
-      __asm__("sta $2006");
-      __asm__("lda #$1c");
-      __asm__("sta $2007");
-      //pal_col(0,0x1c);
+      __asm__("bit $2002");
+      PPU.vram.address =0x3f;
+      PPU.vram.address =0x00;
+      //if(clock&0x1)
+      {
+        //PPU.vram.data = 0x0c;
+      }
+      //else
+      {
+        PPU.vram.data = 0x1c;
+      }
     }
     clock=newclock;
 
