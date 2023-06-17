@@ -195,9 +195,10 @@ enum action_state
   ACTION_DASHING_GROUND=7,
   ACTION_TURNING_AROUND_GROUND=8, // todo
   ACTION_STOPPING_GROUND=9, // todo
-  ACTION_FAST_FALLING_AIR=10, 
-  ACTION_ATTACK_GROUND=11, // todo
-  ACTION_ATTACK_AIR=12 // todo
+  ACTION_EDGE_GRAB_GROUND=10, //todo
+  ACTION_FAST_FALLING_AIR=11, 
+  ACTION_ATTACK_GROUND=12, // todo
+  ACTION_ATTACK_AIR=13 // todo
 };
 
 #define ON_GROUND(state) (((state)!=ACTION_STAND_BY_AIR)&&((state)!=ACTION_FAST_FALLING_AIR)&&((state)!=ACTION_ATTACK_AIR))
@@ -312,6 +313,20 @@ void addp(byte type, byte x, byte y, byte len)
 
 void reset_level_and_bg()
 {
+  char i;
+  //set_rand(80);
+  set_rand(379);
+  
+  for(i=0;i<19;++i)
+  {
+    
+    vram_adr(NTADR_A(rand8()&0x1f,
+                     (rand8()&0x07)+8));
+    vram_fill(0x94+2+(i&0b00000011), 1);
+  }
+  set_rand(800);
+  
+  
   // Draw bg fades
   vram_adr(NAMETABLE_A);
   vram_fill(0x04, 96); // Sky
@@ -619,6 +634,7 @@ void __fastcall__ irq_nmi_callback(void)
 {
   
   print_state(0,NTADR_A(1,27));
+  //print_state(1,NTADR_A(10,27));
   //__asm__("lda #$00");
   //__asm__("sta $2005");
   //__asm__("lda #$ff");
