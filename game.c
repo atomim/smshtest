@@ -43,8 +43,8 @@ const char PALETTE[33] = {
 };
 
 //switch this to disable asserts.
-#define Assert(cond) if(cond)for(;;);
-//#define Assert(cond) ;
+//#define Assert(cond) if(cond)for(;;);
+#define Assert(cond) ;
 
 #define ATTR 0
 
@@ -144,7 +144,7 @@ const unsigned char name[]={\
 // !optimize intent access(day 3.5)
 // !optimize physics iteration(day 3.5)
 // !add sprite for edge sway (day 3)
-// *support edge sway
+// !support edge sway (day 5)
 // !add debug print (day 4)
 // *optimize debug print
 // !add frame drop detection (day 3.5)
@@ -295,6 +295,35 @@ short int* a_speed_y;
 #pragma bss-name (pop)
 #pragma data-name(pop)
 
+struct vram_inst
+{
+  unsigned char _0_lda_opcode_A9;
+  unsigned char _1_lda_val;
+  unsigned char _2_sta_opcode_8D;
+  unsigned char _3_sta_addr_07;
+  unsigned char _4_sta_addr_20;
+};
+
+#define vram_line_len 31
+
+struct vram_inst vram_line[vram_line_len];
+struct vram_inst vram_line2[vram_line_len];
+
+void init_vram_line(struct vram_inst* inst)
+{
+  byte i;
+  for(i=0;i<vram_line_len-1;i++)
+  {
+    inst->_0_lda_opcode_A9 = 0xA9;
+    //inst->_1_lda_val=0;// skip setting data byte.
+    inst->_2_sta_opcode_8D = 0x8D;
+    inst->_3_sta_addr_07 = 0x07;
+    inst->_4_sta_addr_20 = 0x20;
+    inst++;
+  }
+  inst->_0_lda_opcode_A9 = 0x60; // RTS instead of next instr.
+}
+
 
 byte p_count=0;
 
@@ -367,99 +396,91 @@ void reset_level_and_bg()
 
 }
 
-void print_state(byte player,short int adr)
+void update_debug_info(byte player,struct vram_inst* inst)
 {
   enum action_state cur_action=actor_state[player].current_action;
- 
-  PPU.mask =0x0;
-  vram_adr(adr);
-  vram_fill(0x30+cur_action, 1);
-  //vram_write(":",1);
-  
+  inst->_1_lda_val = 0x30+cur_action;
+  inst++;
   switch(cur_action)
   {
     case ACTION_STAND_BY_GROUND:
-      vram_write("S",1);
+      inst->_1_lda_val = 'S';
       break;
     case ACTION_STAND_BY_AIR:
-      vram_write("A",1);
+      inst->_1_lda_val = 'A';
       break;
     case ACTION_CROUCHING_TO_JUMP_GROUND:
-      vram_write("c",1);
+      inst->_1_lda_val = 'c';
       break;
     case ACTION_CROUCHING_GROUND:
-      vram_write("C",1);
+      inst->_1_lda_val = 'C';
       break;
     //ACTION_HANGING_GROUND=4, //todo
     case ACTION_WALKING_GROUND:
-      vram_write("W",1);
+      inst->_1_lda_val = 'W';
       break;
     case ACTION_RUNNING_GROUND:
-      vram_write("R",1);
+      inst->_1_lda_val = 'R';
       break;
     case ACTION_DASHING_GROUND:
-      vram_write("D",1);
+      inst->_1_lda_val = 'D';
       break;
     //ACTION_TURNING_AROUND_GROUND=8, // todo
     //ACTION_STOPPING_GROUND=9, // todo
     case ACTION_FAST_FALLING_AIR:
-      vram_write("F",1);
+      inst->_1_lda_val = 'F';
       break;
     //ACTION_ATTACK_GROUND=11, // todo
     //ACTION_ATTACK_AIR=12 // todo
     default:
+      inst->_1_lda_val = '?';
       break;
   }
-  
+  inst++;
   a_intent=&actor_intent[player];
   //vram_write(",",1);
   if(a_intent->dir == DIR_RIGHT)
   {
-    vram_write("R",1);
+    inst->_1_lda_val = 'R';
   }
   else if(a_intent->dir = DIR_LEFT)
   {
-    vram_write("L",1);
+    inst->_1_lda_val = 'L';
   }
   else
   {
-    vram_write(".",1);
+    inst->_1_lda_val = '.';
   }
+  inst++;
   if(a_intent->jump)
   {
-    vram_write("J",1);
+    inst->_1_lda_val = 'J';
   }
   else
   {
-    vram_write(".",1);
+    inst->_1_lda_val = '.';
   }
+  inst++;
   if(a_intent->crouch)
   {
-    vram_write("C",1);
+    inst->_1_lda_val = 'C';
   }
   else
   {
-    vram_write(".",1);
+    inst->_1_lda_val = '.';
   }
+  inst++;
   if(a_intent->fast_fall)
   {
-    vram_write("F",1);
+    inst->_1_lda_val = 'F';
   }
   else
   {
-    vram_write(".",1);
+    inst->_1_lda_val = '.';
   }
   
-  //if(a_state->current_action_frames<10)
-  //{
-  //vram_adr(adr+10+a_state->current_action_frames);
-  //vram_write("-/",2);
-  //}
-    
-    
-  vram_adr(NTADR_A(0,0));
-  PPU.mask =0b00011110;
-    
+  //inst++;
+  //inst->_1_lda_val = '!';
 }
 
 char num_ai;
@@ -643,17 +664,11 @@ void initialize_player(byte num, byte type, byte x, byte y)
 char clock=0;
 void __fastcall__ irq_nmi_callback(void) 
 {
-  
-  print_state(0,NTADR_A(1,27));
-  //print_state(1,NTADR_A(10,27));
-  //__asm__("lda #$00");
-  //__asm__("sta $2005");
-  //__asm__("lda #$ff");
-  //__asm__("sta $2005");
-  
-  
-  //PPU.control=0x03;
-  //scroll(0,0);
+  vram_adr(NTADR_A(1,27));
+  __asm__("jsr %v",vram_line);
+  //vram_adr(NTADR_A(1,26));
+  __asm__("jsr %v",vram_line2);
+  //print_state(0,NTADR_A(1,27));
 
 }
 
@@ -666,19 +681,20 @@ void main(void) {
   char last_pad = 0;
   char pad_rising = 0;
   char pad_falling =0;
-  
+  bool demo_mode_on = true;
 
   //
   // INIT
   //
   
-  bool demo_mode_on = true;
+  init_vram_line(vram_line);
+  init_vram_line(vram_line2);
   
   // set background palette colors
   pal_all(PALETTE);
 
-  //initialize_player(0,0,54+10,143);  
-  initialize_player(0,0,128,99);
+  initialize_player(0,0,54+10,143);  
+  //initialize_player(0,0,128,99);
   
   #if NUM_ACTORS>1
   initialize_player(1,0,128,99);
@@ -1191,12 +1207,18 @@ void main(void) {
       // if we haven't wrapped oam_id around to 0
       if (oam_id!=0) oam_hide_rest(oam_id);
     }
+    
+    update_debug_info(0,vram_line);
+    update_debug_info(1,vram_line+8);
+    update_debug_info(2,vram_line+16);
+    update_debug_info(3,vram_line+24);
+    
     // wait for next frame
     {
       // loop to count extra time in frame
       {
         int i;
-        for(i=0;i<55;++i)
+        for(i=0;i<0;++i)
         {
         }
       }
