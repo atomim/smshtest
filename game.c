@@ -264,16 +264,16 @@ struct platform{
 #define NUM_ACTORS 4
 #define NUM_PLATFORMS 4
 
-byte actor_x[NUM_ACTORS+1];      // Position
-byte actor_y[NUM_ACTORS+1];
-byte actor_xf[NUM_ACTORS+1];     // Fraction
-byte actor_yf[NUM_ACTORS+1];
-short int actor_speedx[NUM_ACTORS+1]; // Speed
-short int actor_speedy[NUM_ACTORS+1];
-void *actor_sprite[NUM_ACTORS+1];// Which sprite to show
-struct state actor_state[NUM_ACTORS+1];
+byte actor_x[NUM_ACTORS];      // Position
+byte actor_y[NUM_ACTORS];
+byte actor_xf[NUM_ACTORS];     // Fraction
+byte actor_yf[NUM_ACTORS];
+short int actor_speedx[NUM_ACTORS]; // Speed
+short int actor_speedy[NUM_ACTORS];
+void *actor_sprite[NUM_ACTORS];// Which sprite to show
+struct state actor_state[NUM_ACTORS];
 struct intent actor_intent[NUM_ACTORS];
-struct params actor_params[NUM_ACTORS+1]; // Todo: move to rom
+struct params actor_params[NUM_ACTORS]; // Todo: move to rom
 struct platform platforms[NUM_PLATFORMS];
 
 // try to push a frequent pointer to zp.
@@ -675,8 +675,8 @@ void main(void) {
   // set background palette colors
   pal_all(PALETTE);
 
-  initialize_player(0,0,54+10,143);  
-  //initialize_player(0,0,128,99);
+  //initialize_player(0,0,54+10,143);  
+  initialize_player(0,0,128,99);
   
   #if NUM_ACTORS>1
   initialize_player(1,0,128,99);
@@ -778,10 +778,6 @@ void main(void) {
       }
     }
     
-    if(clock&0x01)
-    {
-    //actor_intent[0].jump = true;
-    }
       
     // Actor State and intent physics
     for (i=0; i<NUM_ACTORS; i++) 
