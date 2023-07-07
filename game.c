@@ -134,9 +134,10 @@ const unsigned char name[]={\
 // *neutral attack
 // *clarify states and logic more(enums and masks)
 // *support coordinates outside of screen
-
 // *KO on arena edges, spawning
-// *Make opposite intents mutually exclusive
+// !make opposite directions mutually exclusive (day 5)
+// !keep last facing direction when stopping (day 5)
+// *Fix fast fall falling through
 // !optimize platform iteration and access (day 3)
 // !warn on frame drops (day 3)
 // !optimize player iteration(day 2.5)
@@ -151,6 +152,7 @@ const unsigned char name[]={\
 // !add bg decoration
 // !fix failing jump and add asserts (day 4/5)
 // !fix fall through (day 5)
+// *fix perf of indexing spritess
 
 DEF_METASPRITE_2x2_VARS(char1stand,0xd8);
 DEF_METASPRITE_2x2_VARS(char1crouch,0xdc);
@@ -206,18 +208,22 @@ enum action_state
 
 #define ON_GROUND(state) (((state)!=ACTION_STAND_BY_AIR)&&((state)!=ACTION_FAST_FALLING_AIR)&&((state)!=ACTION_ATTACK_AIR))
 
+enum dir
+{
+  DIR_LEFT,
+  DIR_RIGHT,
+  DIR_NONE
+};
+
+
 struct state{
   enum action_state current_action;
   //bool on_ground;
-  bool moving_left;
-  bool moving_right;
+  enum dir moving_dir;
+  enum dir facing_dir;
   bool direction_changed;
-  //bool crouching;
   // hanging
-  //byte jump_crouch_frames;
-  //byte walk_frames;
-  //byte dash_frames;
-  //byte movement_hold_frames; // for crouch canceling dash
+  //byte movement_hold_frames; // for crouch canceling dash, move to params
   //byte attack_hold_frames;   // for attacks
   //byte running;
   byte current_action_frames;
@@ -225,12 +231,12 @@ struct state{
   bool on_edge;
   bool fall_through_triggered;
 };
+
+
 struct intent{
-  bool left; //todo: add directional intent and apply only with compatible actions
-  bool right;
+  enum dir dir;
   bool jump;
-  //bool short_jump; // Cancel jump by releasing during crouch.
-  //bool double_jump;
+
   bool crouch;
   bool dash;
   bool fast_fall;
@@ -405,17 +411,13 @@ void print_state(byte player,short int adr)
       break;
   }
   
-  //a_intent=&actor_intent[player];
-  vram_write(",",1);
-  if(a_intent->left && a_intent->right)
-  {
-    vram_write("X",1);
-  }
-  else if(a_intent->right)
+  a_intent=&actor_intent[player];
+  //vram_write(",",1);
+  if(a_intent->dir == DIR_RIGHT)
   {
     vram_write("R",1);
   }
-  else if(a_intent->left)
+  else if(a_intent->dir = DIR_LEFT)
   {
     vram_write("L",1);
   }
@@ -548,38 +550,36 @@ void simulate_player(unsigned char num)
     {
       case 0:
         break;
-      case 1:
+      case 1: // Jump
         actor_intent[num].jump = true;
         actor_intent[num].crouch = false;
         break;
       case 2:
-      case 3:
+      case 3: // Release Jump
         actor_intent[num].jump = false;
         break;
-      case 4: 
-        actor_intent[num].left = false;
-        actor_intent[num].right = false;
+      case 4: // Stop
+        actor_intent[num].dir = DIR_NONE;
         actor_intent[num].crouch = false;
         break;
-      case 5:
-        actor_intent[num].left = true;
+      case 5: // Left
+        actor_intent[num].dir = DIR_LEFT;
         actor_intent[num].crouch = false;
         break;
-      case 6:
-        actor_intent[num].right = true;
+      case 6: // Right
+        actor_intent[num].dir = DIR_RIGHT;
         actor_intent[num].crouch = false;
         break;
-      case 7:
+      case 7: // Fast fall / crouch;
         actor_intent[num].fast_fall = true;
         actor_intent[num].crouch = true;
         break;
       case 8:
-      case 9:
+      case 9: // crouch still
         actor_intent[num].crouch = true;
-        actor_intent[num].left = false;
-        actor_intent[num].right = false;
+        actor_intent[num].dir = DIR_NONE;
         break;
-      case 10:
+      case 10: // Cancel Fast fall / crouch
         actor_intent[num].fast_fall = false;
         actor_intent[num].crouch = false;
         break;
@@ -589,19 +589,16 @@ void simulate_player(unsigned char num)
       case 14:
       case 15:
       case 16:
-      case 17:
-        // save when falling off
+      case 17: // save when falling off
         if(id_under==-1)
         {
           if(id_left!=-1)
           {
-            actor_intent[num].left=true;
-            actor_intent[num].right=false;
+            actor_intent[num].dir = DIR_LEFT;
           }
           if(id_right!=-1)
           {
-            actor_intent[num].right=true;
-            actor_intent[num].left=false;
+            actor_intent[num].dir = DIR_RIGHT;
           }
           actor_intent[num].fast_fall=false;
           if(actor_speedy[num]>0)
@@ -749,15 +746,17 @@ void main(void) {
     else
     {
       // Reset left/right.
-      actor_intent[0].left = false;
-      actor_intent[0].right = false;
-      if(pad & PAD_LEFT)
+      if(pad & PAD_LEFT && !(pad & PAD_RIGHT))
       {
-          actor_intent[0].left = true;
+          actor_intent[0].dir = DIR_LEFT;
       }
       else if(pad & PAD_RIGHT)
       {
-          actor_intent[0].right = true;
+          actor_intent[0].dir = DIR_RIGHT;
+      }
+      else
+      {
+      	actor_intent[0].dir = DIR_NONE;
       }
       
       // Jump / cancel jump when state changes. Let simulation update consume intent in between.
@@ -837,14 +836,14 @@ void main(void) {
         
         if(cur_action==ACTION_STAND_BY_AIR)
         {
-          if(a_intent->left)
-            {
-              *a_speed_x=-a_params->run_speed;
-            }
-            else if(a_intent->right)
-            {
-              *a_speed_x=a_params->run_speed;
-            }
+          if(a_intent->dir == DIR_LEFT)
+          {
+            *a_speed_x=-a_params->run_speed;
+          }
+          else if(a_intent->dir == DIR_RIGHT)
+          {
+            *a_speed_x=a_params->run_speed;
+          }
           // todo:skidding
           // todo:dashing
         }
@@ -856,7 +855,7 @@ void main(void) {
         
         if(cur_action==ACTION_STAND_BY_GROUND)
         {
-          if(a_intent->left || a_intent->right)
+          if(a_intent->dir != DIR_NONE)
           {
             cur_action=ACTION_WALKING_GROUND;
             action_frames=0;
@@ -876,11 +875,11 @@ void main(void) {
             {
               action_frames=0;
             }
-            if(a_intent->left)
+            if(a_intent->dir == DIR_LEFT)
             {
               *a_speed_x=-a_params->walk_speed;
             }
-            else if(a_intent->right)
+            else if(a_intent->dir == DIR_RIGHT)
             {
               *a_speed_x=a_params->walk_speed;
             }
@@ -888,11 +887,11 @@ void main(void) {
         }
         if(cur_action==ACTION_RUNNING_GROUND)
         {
-          if(a_intent->left)
+          if(a_intent->dir == DIR_LEFT)
           {
             *a_speed_x=-a_params->run_speed;
           }
-          else if(a_intent->right)
+          else if(a_intent->dir == DIR_RIGHT)
           {
             *a_speed_x=a_params->run_speed;
           }
@@ -1058,8 +1057,8 @@ void main(void) {
           // todo: split condition to improve perf
           // on_edge
           if(on_platform
-             && ((actor_feet_x<cur_platform->x1+16 && a_state->moving_left) 
-                 || (actor_feet_x>cur_platform->x2-16&& a_state->moving_right))
+             && ((actor_feet_x<cur_platform->x1+16 && a_state->facing_dir == DIR_LEFT) 
+                 || (actor_feet_x>cur_platform->x2-16&& a_state->facing_dir == DIR_RIGHT))
              )
           {
             on_edge=true;
@@ -1087,39 +1086,39 @@ void main(void) {
           action_on_ground=true;
         }
 
-        // Current action may have been invalidated.
+        // Current action may have been invalidated. Set it again.
+        // TODO: Simplify.
         cur_action=a_state->current_action;
 
         // Moving left/right
         a_state->direction_changed = false;
         if(*a_speed_x>0)
         {
-          if(a_state->moving_right==false)
+          if(a_state->moving_dir == DIR_LEFT)
           {
             a_state->direction_changed = true;
           }
-          a_state->moving_right=true;
-          a_state->moving_left=false;
+          a_state->moving_dir = DIR_RIGHT;
+          a_state->facing_dir = DIR_RIGHT;
         }
         else if(*a_speed_x<0)
         {
-          if(a_state->moving_left==false)
+          if(a_state->moving_dir == DIR_RIGHT)
           {
             a_state->direction_changed = true;
           }
-          a_state->moving_left=true;
-          a_state->moving_right=false;
+          a_state->moving_dir = DIR_LEFT;
+          a_state->facing_dir = DIR_LEFT;
         }
         else
         {
-          a_state->moving_right=false;
-          a_state->moving_left=false;
+          a_state->moving_dir = DIR_NONE;
         }
 
         // Select sprite
         // TODO: deduplicate
         // todo: improve facing difection.
-        if(actor_speedx[i]>0)//right
+        if(a_state->facing_dir == DIR_RIGHT)//right
         {
           sprite_var=i;
         }
@@ -1197,7 +1196,7 @@ void main(void) {
       // loop to count extra time in frame
       {
         int i;
-        for(i=0;i<45;++i)
+        for(i=0;i<55;++i)
         {
         }
       }
