@@ -128,6 +128,7 @@ const unsigned char name[]={\
 // *better fall through control
 // *crouch dash cancel
 // *running inertia
+// *Implement target speed and acceleration per action
 // *dash dancing support
 // *dash attack
 // !ai to avoid falling off(day 3)
@@ -153,7 +154,6 @@ const unsigned char name[]={\
 // !fix failing jump and add asserts (day 4/5)
 // !fix fall through (day 5)
 // *fix perf of indexing spritess
-// *Implement target speed and acceleration per action
 
 DEF_METASPRITE_2x2_VARS(char1stand,0xd8);
 DEF_METASPRITE_2x2_VARS(char1crouch,0xdc);
@@ -273,7 +273,7 @@ struct platform{
   byte has_edge;
 };
 
-#define NUM_ACTORS 1
+#define NUM_ACTORS 4
 #define NUM_PLATFORMS 4
 
 byte actor_x[NUM_ACTORS];      // Position
@@ -1013,9 +1013,9 @@ void main(void) {
           // Side collision and grab
           if(!on_platform && cur_platform->has_edge)
           {
-            //byte grab_box_x1;
-            //byte grab_box_x2;
-            //byte grab_box_y;
+            byte grab_box_x1;
+            byte grab_box_x2;
+            byte grab_box_y;
             
             // collision to edge
             if(actor_y[i]<cur_platform->y2 
@@ -1035,25 +1035,41 @@ void main(void) {
             }
             
             // grab
-            
-            /*
-            grab_box_x1=actor_feet_x-6;
-            grab_box_x2=actor_feet_x+6;
-            grab_box_y=actor_y[i]+6;
+
+            grab_box_x1=actor_feet_x-8;
+            grab_box_x2=actor_feet_x+8;
+            grab_box_y=actor_y[i];
             //todo:take direction into account
             //todo: collide with edge
-            if(grab_box_y>=cur_platform->y1
-             && grab_box_y<=cur_platform->y2
-             && grab_box_x1>cur_platform->x1
-             && grab_box_x2<cur_platform->x2
-              )
+            if(falling && !a_intent->jump
+               && grab_box_y>=cur_platform->y1
+               && grab_box_y<=cur_platform->y2)
             {
-              //todo: grab
-              i++;
-              i--;
-              a_po
+              if(a_intent->dir!=DIR_LEFT
+                 && grab_box_x2>cur_platform->x1
+                 && grab_box_x1<cur_platform->x1
+                )
+              {
+                a_speed_x[i]=0;a_speed_y[i]=0;
+                actor_y[i]=cur_platform->y1;
+                actor_x[i]=cur_platform->x1-11;
+                a_state->current_action = ACTION_HANGING_GROUND;
+                a_state->facing_dir = DIR_RIGHT;
+                on_ground = true;
+              }
+              else if(a_intent->dir!=DIR_RIGHT
+                 && grab_box_x2>cur_platform->x2
+                 && grab_box_x1<cur_platform->x2)
+              {
+                a_speed_x[i]=0;a_speed_y[i]=0;
+                actor_y[i]=cur_platform->y1;
+                actor_x[i]=cur_platform->x2-5;
+                a_state->current_action = ACTION_HANGING_GROUND;
+                a_state->facing_dir = DIR_LEFT;
+                on_ground = true;
+              }
             }
-            */
+            
           }
           // normal collision
           on_platform=
@@ -1150,6 +1166,7 @@ void main(void) {
         {
           sprite_var=i+4;
         }
+        // TODO: Implement LUT instead of a lot of ifs.
         if(action_on_ground)
         {
           if(cur_action==ACTION_RUNNING_GROUND)
@@ -1171,6 +1188,10 @@ void main(void) {
             {
               actor_sprite[i] = char1stand_sprites[sprite_var];
             }
+          }
+          else if(cur_action==ACTION_HANGING_GROUND)
+          {
+            actor_sprite[i] = char1ledge_sprites[sprite_var];
           }
           else
           {
