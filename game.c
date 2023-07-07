@@ -70,8 +70,6 @@ void* name##_sprites[]={\
 
 
 
-
-
 // define a 2x2 metasprite
 #define DEF_METASPRITE_2x2(name,code,pal)\
 const unsigned char name[]={\
@@ -670,6 +668,10 @@ void main(void) {
   char pad_falling =0;
   
 
+  //
+  // INIT
+  //
+  
   bool demo_mode_on = true;
   
   // set background palette colors
@@ -702,7 +704,9 @@ void main(void) {
   // enable PPU rendering (turn on screen)
   ppu_on_all();
 
-  // infinite loop
+  //
+  // MAIN LOOP
+  //
   while (1) {
     unsigned char i, j; // actor index
     unsigned char oam_id; // sprite ID
@@ -778,26 +782,28 @@ void main(void) {
       }
     }
     
-      
+    //
+    // SIMULATION LOOP
+    //
+    
+    // Reset pointers for first iteration. This is faster than indexing.
+    a_state=actor_state;
+    a_intent=actor_intent;
+    a_params=actor_params;
+    a_speed_x=actor_speedx;
+    a_speed_y=actor_speedy;
+
     // Actor State and intent physics
     for (i=0; i<NUM_ACTORS; i++) 
     {
       enum action_state cur_action;
       bool on_ground=false;
       byte action_frames=0;
-      bool on_edge=false;
-      short int actorxf;
-      short int actoryf;
-      
-      a_state=&actor_state[i];
-      a_intent=&actor_intent[i];
-      a_params=&actor_params[i];
-      a_speed_x=&actor_speedx[i];
-      a_speed_y=&actor_speedy[i];
       
       cur_action=a_state->current_action;
       action_frames=a_state->current_action_frames;
       on_ground=ON_GROUND(cur_action);
+      
       
       
       if (!on_ground) // on air
@@ -951,203 +957,211 @@ void main(void) {
     //}
     
     // Actor Physics
-    
-    //for (i=0; i<NUM_ACTORS; i++) {
-      {
-      
-      byte speed_y_in_pixels;
-      bool action_on_ground=false;
-      unsigned char sprite_var;
-      speed_y_in_pixels=(*a_speed_y>>8);
-      
-      //a_state=&actor_state[i];
-      actorxf = actor_xf[i]+*a_speed_x;
-      actoryf = actor_yf[i]+*a_speed_y;
-      // TODO: no loops here.
-      while(actorxf>=255)
-      {
-        actor_x[i] +=1;
-        actorxf-=0xff;
-      }
-      while(actorxf<0)
-      {
-        actor_x[i] -=1;
-        actorxf+=0xff;
-      }
-      
-      while(actoryf>=255)
-      {
-        actor_y[i] +=1;
-        actoryf-=0xff;
-      }
-      while(actoryf<0)
-      {
-        actor_y[i] -=1;
-        actoryf+=0xff;
-      }
-      
-      
-      actor_xf[i] = actorxf;
-      actor_yf[i] = actoryf;
-      
-      // Collisions and related calculation
-      
-      on_ground = false;
-      on_edge = false;
-      for(j=0;j<p_count;++j)
-      {
-        bool falling=false;
-        bool on_platform=false;
-        byte actor_feet_x;
-        byte actor_feet_y;
-        bool skip_due_to_fall_through;
-        cur_platform=&platforms[j];
-        actor_feet_x=actor_x[i]+8;
-        actor_feet_y=actor_y[i]+17;
-        skip_due_to_fall_through=(a_state->current_action==ACTION_CROUCHING_GROUND && cur_platform->can_fall_through);
-        falling=actor_speedy[i] >= 0;
-        /*if(cur_platform->has_edge)
+    {
+        short int actorxf;
+        short int actoryf;
+        bool on_edge;
+        byte speed_y_in_pixels;
+        bool action_on_ground=false;
+        unsigned char sprite_var;
+        speed_y_in_pixels=(*a_speed_y>>8);
+
+        actorxf = actor_xf[i]+*a_speed_x;
+        actoryf = actor_yf[i]+*a_speed_y;
+        // TODO: no loops here.
+        while(actorxf>=255)
         {
-          byte grab_box_x1;
-          byte grab_box_x2;
-          byte grab_box_y;
-          grab_box_x1=actor_feet_x-6;
-          grab_box_x2=actor_feet_x+6;
-          grab_box_y=actor_y[i]+1;
-          //todo:take direction into account
-          //todo: collide with edge
-          if(actor_feet_y>=cur_platform->y1
-           && actor_feet_y<=cur_platform->y2
-           && actor_feet_x>cur_platform->x1
-           && actor_feet_x<cur_platform->x2
+          actor_x[i] +=1;
+          actorxf-=0xff;
+        }
+        while(actorxf<0)
+        {
+          actor_x[i] -=1;
+          actorxf+=0xff;
+        }
+
+        while(actoryf>=255)
+        {
+          actor_y[i] +=1;
+          actoryf-=0xff;
+        }
+        while(actoryf<0)
+        {
+          actor_y[i] -=1;
+          actoryf+=0xff;
+        }
+
+
+        actor_xf[i] = actorxf;
+        actor_yf[i] = actoryf;
+
+        // Collisions and related calculation
+
+        on_ground = false;
+        on_edge = false;
+        for(j=0;j<p_count;++j)
+        {
+          bool falling=false;
+          bool on_platform=false;
+          byte actor_feet_x;
+          byte actor_feet_y;
+          bool skip_due_to_fall_through;
+          cur_platform=&platforms[j];
+          actor_feet_x=actor_x[i]+8;
+          actor_feet_y=actor_y[i]+17;
+          skip_due_to_fall_through=(a_state->current_action==ACTION_CROUCHING_GROUND && cur_platform->can_fall_through);
+          falling=actor_speedy[i] >= 0;
+          /*if(cur_platform->has_edge)
+          {
+            byte grab_box_x1;
+            byte grab_box_x2;
+            byte grab_box_y;
+            grab_box_x1=actor_feet_x-6;
+            grab_box_x2=actor_feet_x+6;
+            grab_box_y=actor_y[i]+1;
+            //todo:take direction into account
+            //todo: collide with edge
+            if(actor_feet_y>=cur_platform->y1
+             && actor_feet_y<=cur_platform->y2
+             && actor_feet_x>cur_platform->x1
+             && actor_feet_x<cur_platform->x2
+              )
+            {
+              //todo: grab
+            }
+          }*/
+          // normal collision
+          on_platform=
+             actor_feet_y>=cur_platform->y1-speed_y_in_pixels
+             && actor_feet_y<=cur_platform->y2
+             && actor_feet_x>cur_platform->x1
+             && actor_feet_x<cur_platform->x2;
+          if(falling
+             && on_platform
+             && !skip_due_to_fall_through
             )
           {
-            //todo: grab
+            actor_y[i] = cur_platform->y1-17;
+            actor_speedy[i] = 0;
+            actor_yf[i] = 0;
+            on_ground = true;
           }
-        }*/
-        // normal collision
-        on_platform=
-           actor_feet_y>=cur_platform->y1-speed_y_in_pixels
-           && actor_feet_y<=cur_platform->y2
-           && actor_feet_x>cur_platform->x1
-           && actor_feet_x<cur_platform->x2;
-        if(falling
-           && on_platform
-           && !skip_due_to_fall_through
-          )
-        {
-          actor_y[i] = cur_platform->y1-17;
-          actor_speedy[i] = 0;
-          actor_yf[i] = 0;
-          on_ground = true;
-        }
-        // todo: split condition to improve perf
-        // on_edge
-        if(on_platform
-           && ((actor_feet_x<cur_platform->x1+16 && a_state->moving_left) 
-               || (actor_feet_x>cur_platform->x2-16&& a_state->moving_right))
-           )
-        {
-          on_edge=true;
-        }
-      }
-      a_state->on_edge=on_edge;
-      
-      
-      // Fix action based on physical on_ground state.
-      action_on_ground = ON_GROUND(a_state->current_action);
-      if(!on_ground && action_on_ground) 
-      { // fall off edge
-        a_state->current_action = ACTION_STAND_BY_AIR;
-        a_state->current_action_frames=0;
-        action_on_ground=false;
-      }
-      else if(on_ground && !action_on_ground)
-      { // fall on ground
-        a_state->current_action = ACTION_STAND_BY_GROUND;
-        a_state->current_action_frames=0;
-        action_on_ground=true;
-      }
-      
-      // Current action may have been invalidated.
-      cur_action=a_state->current_action;
-      
-      // Moving left/right
-      a_state->direction_changed = false;
-      if(*a_speed_x>0)
-      {
-        if(a_state->moving_right==false)
-        {
-          a_state->direction_changed = true;
-        }
-        a_state->moving_right=true;
-        a_state->moving_left=false;
-      }
-      else if(*a_speed_x<0)
-      {
-        if(a_state->moving_left==false)
-        {
-          a_state->direction_changed = true;
-        }
-        a_state->moving_left=true;
-        a_state->moving_right=false;
-      }
-      else
-      {
-        a_state->moving_right=false;
-        a_state->moving_left=false;
-      }
-      
-      // Select sprite
-      // TODO: deduplicate
-      // todo: improve facing difection.
-      if(actor_speedx[i]>0)//right
-      {
-        sprite_var=i;
-      }
-      else
-      {
-        sprite_var=i+4;
-      }
-      if(action_on_ground)
-      {
-        if(cur_action==ACTION_RUNNING_GROUND)
-        {
-          actor_sprite[i] = char1run_sprites[sprite_var];
-        }
-        else if(cur_action==ACTION_CROUCHING_GROUND)
-        {
-          actor_sprite[i] = char1crouch_sprites[sprite_var];
-        }
-        else if(cur_action==ACTION_STAND_BY_GROUND 
-                || cur_action==ACTION_WALKING_GROUND)
-        {
-          if(a_state->on_edge)
+          // todo: split condition to improve perf
+          // on_edge
+          if(on_platform
+             && ((actor_feet_x<cur_platform->x1+16 && a_state->moving_left) 
+                 || (actor_feet_x>cur_platform->x2-16&& a_state->moving_right))
+             )
           {
-            actor_sprite[i] = char1sway_sprites[sprite_var];
+            on_edge=true;
+          }
+        }
+        a_state->on_edge=on_edge;
+
+
+        // Fix action based on physical on_ground state.
+        action_on_ground = ON_GROUND(a_state->current_action);
+        if(!on_ground && action_on_ground) 
+        { // fall off edge
+          a_state->current_action = ACTION_STAND_BY_AIR;
+          a_state->current_action_frames=0;
+          action_on_ground=false;
+        }
+        else if(on_ground && !action_on_ground)
+        { // fall on ground
+          a_state->current_action = ACTION_STAND_BY_GROUND;
+          a_state->current_action_frames=0;
+          action_on_ground=true;
+        }
+
+        // Current action may have been invalidated.
+        cur_action=a_state->current_action;
+
+        // Moving left/right
+        a_state->direction_changed = false;
+        if(*a_speed_x>0)
+        {
+          if(a_state->moving_right==false)
+          {
+            a_state->direction_changed = true;
+          }
+          a_state->moving_right=true;
+          a_state->moving_left=false;
+        }
+        else if(*a_speed_x<0)
+        {
+          if(a_state->moving_left==false)
+          {
+            a_state->direction_changed = true;
+          }
+          a_state->moving_left=true;
+          a_state->moving_right=false;
+        }
+        else
+        {
+          a_state->moving_right=false;
+          a_state->moving_left=false;
+        }
+
+        // Select sprite
+        // TODO: deduplicate
+        // todo: improve facing difection.
+        if(actor_speedx[i]>0)//right
+        {
+          sprite_var=i;
+        }
+        else
+        {
+          sprite_var=i+4;
+        }
+        if(action_on_ground)
+        {
+          if(cur_action==ACTION_RUNNING_GROUND)
+          {
+            actor_sprite[i] = char1run_sprites[sprite_var];
+          }
+          else if(cur_action==ACTION_CROUCHING_GROUND)
+          {
+            actor_sprite[i] = char1crouch_sprites[sprite_var];
+          }
+          else if(cur_action==ACTION_STAND_BY_GROUND 
+                  || cur_action==ACTION_WALKING_GROUND)
+          {
+            if(a_state->on_edge)
+            {
+              actor_sprite[i] = char1sway_sprites[sprite_var];
+            }
+            else
+            {
+              actor_sprite[i] = char1stand_sprites[sprite_var];
+            }
           }
           else
           {
-            actor_sprite[i] = char1stand_sprites[sprite_var];
+            // Todo: handle jump crouch as part of animation instead of last case
+            actor_sprite[i] = char1crouch_sprites[sprite_var];
           }
         }
         else
         {
-          // Todo: handle jump crouch as part of animation instead of last case
-          actor_sprite[i] = char1crouch_sprites[sprite_var];
+          if(actor_intent[i].fast_fall) // Todo: use state instead of intent.
+          {
+            actor_sprite[i] = char1fast_fall_sprites[sprite_var];
+          }
+          else
+          {
+            actor_sprite[i] = char1jump_sprites[sprite_var];
+          }
         }
       }
-      else
+      
+      if(i<NUM_ACTORS)
       {
-        if(actor_intent[i].fast_fall) // Todo: use state instead of intent.
-        {
-          actor_sprite[i] = char1fast_fall_sprites[sprite_var];
-        }
-        else
-        {
-          actor_sprite[i] = char1jump_sprites[sprite_var];
-        }
-      }
+        a_state++;
+        a_intent++;
+        a_params++;
+        a_speed_x++;
+        a_speed_y++;
       }
     }
     
@@ -1170,7 +1184,7 @@ void main(void) {
       // loop to count extra time in frame
       {
         int i;
-        for(i=0;i<0;++i)
+        for(i=0;i<45;++i)
         {
         }
       }
