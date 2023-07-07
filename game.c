@@ -153,6 +153,7 @@ const unsigned char name[]={\
 // !fix failing jump and add asserts (day 4/5)
 // !fix fall through (day 5)
 // *fix perf of indexing spritess
+// *Implement target speed and acceleration per action
 
 DEF_METASPRITE_2x2_VARS(char1stand,0xd8);
 DEF_METASPRITE_2x2_VARS(char1crouch,0xdc);
@@ -929,9 +930,22 @@ void main(void) {
         // Note: state might not be on ground anymore.
       }
       
-      // Inertia
+      // Inertia when slowing down
       // TODO: make state specific.
-      *a_speed_x= *a_speed_x*4/5;
+      // TODO: Implement target speed instead of only targeting to 0
+      if(a_intent->dir == DIR_NONE)
+      {
+        if(*a_speed_x>0)
+        {
+     	  *a_speed_x= *a_speed_x-20;//*a_speed_x*4/5;
+          *a_speed_x= MAX(0,*a_speed_x);
+        }
+        else if(*a_speed_x<0)
+        {
+          *a_speed_x= *a_speed_x+20;
+          *a_speed_x= MIN(0,*a_speed_x);
+        }
+      }
       a_state->current_action=cur_action;
       ++action_frames;
       a_state->current_action_frames=MIN(action_frames,255);
@@ -1173,16 +1187,16 @@ void main(void) {
     }
     
     update_debug_info(0,vram_line);
-    //update_debug_info(1,vram_line+8);
-    //update_debug_info(2,vram_line+16);
-    //update_debug_info(3,vram_line+24);
+    update_debug_info(1,vram_line+8);
+    update_debug_info(2,vram_line+16);
+    update_debug_info(3,vram_line+24);
     
     // wait for next frame
     {
       // loop to count extra time in frame
       {
         int i;
-        for(i=0;i<0;++i)
+        for(i=0;i<80;++i)
         {
         }
       }
