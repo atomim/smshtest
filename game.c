@@ -137,7 +137,7 @@ const unsigned char name[]={\
 // *KO on arena edges, spawning
 // !make opposite directions mutually exclusive (day 5)
 // !keep last facing direction when stopping (day 5)
-// *Fix fast fall falling through
+// !Fix fast fall falling through
 // !optimize platform iteration and access (day 3)
 // !warn on frame drops (day 3)
 // !optimize player iteration(day 2.5)
@@ -146,7 +146,7 @@ const unsigned char name[]={\
 // !add sprite for edge sway (day 3)
 // !support edge sway (day 5)
 // !add debug print (day 4)
-// *optimize debug print
+// !optimize debug print
 // !add frame drop detection (day 3.5)
 // !add vegetation
 // !add bg decoration
@@ -750,7 +750,7 @@ void main(void) {
       }
 
       actor_intent[0].fast_fall = pad & PAD_DOWN?true:false;
-      actor_intent[0].crouch = pad & PAD_DOWN?true:false;
+      actor_intent[0].crouch = pad_rising & PAD_DOWN?true:false;
 
       num_ai=NUM_ACTORS-1;
       if(num_ai>0)
