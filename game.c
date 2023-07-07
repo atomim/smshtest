@@ -42,6 +42,9 @@ const char PALETTE[33] = {
 
 };
 
+//switch this to disable asserts.
+#define Assert(cond) if(cond)for(;;);
+//#define Assert(cond) ;
 
 #define ATTR 0
 
@@ -141,13 +144,13 @@ const unsigned char name[]={\
 // !optimize intent access(day 3.5)
 // !optimize physics iteration(day 3.5)
 // !add sprite for edge sway (day 3)
-// *support edge sway
+// /support edge sway
 // !add debug print (day 4)
 // *optimize debug print
-// *add frame drop detection (day 3.5)
+// !add frame drop detection (day 3.5)
 // !add vegetation
-// *add bg decoration
-// 
+// !add bg decoration
+// !fix failing jump and add asserts (day 4/5)
 
 DEF_METASPRITE_2x2_VARS(char1stand,0xd8);
 DEF_METASPRITE_2x2_VARS(char1crouch,0xdc);
@@ -175,7 +178,7 @@ void p(byte type, byte x, byte y, byte len)
     for(i=0;i<max;++i)
     {
       pos+=1+rand()%0x03;
-      if(pos>len)pos-=len;
+      if(pos>len-1)pos-=len;
       vram_adr(NTADR_A(x+pos,y-1));
       vram_fill(0x92+rand()%2, 1);
     }
@@ -261,16 +264,16 @@ struct platform{
 #define NUM_ACTORS 4
 #define NUM_PLATFORMS 4
 
-byte actor_x[NUM_ACTORS];      // Position
-byte actor_y[NUM_ACTORS];
-byte actor_xf[NUM_ACTORS];     // Fraction
-byte actor_yf[NUM_ACTORS];
-short int actor_speedx[NUM_ACTORS]; // Speed
-short int actor_speedy[NUM_ACTORS];
-void *actor_sprite[NUM_ACTORS];// Which sprite to show
-struct state actor_state[NUM_ACTORS];
+byte actor_x[NUM_ACTORS+1];      // Position
+byte actor_y[NUM_ACTORS+1];
+byte actor_xf[NUM_ACTORS+1];     // Fraction
+byte actor_yf[NUM_ACTORS+1];
+short int actor_speedx[NUM_ACTORS+1]; // Speed
+short int actor_speedy[NUM_ACTORS+1];
+void *actor_sprite[NUM_ACTORS+1];// Which sprite to show
+struct state actor_state[NUM_ACTORS+1];
 struct intent actor_intent[NUM_ACTORS];
-struct params actor_params[NUM_ACTORS]; // Todo: move to rom
+struct params actor_params[NUM_ACTORS+1]; // Todo: move to rom
 struct platform platforms[NUM_PLATFORMS];
 
 // try to push a frequent pointer to zp.
@@ -363,8 +366,9 @@ void print_state(byte player,short int adr)
  
   PPU.mask =0x0;
   vram_adr(adr);
-  //vram_fill(0x30+cur_action, 1);
+  vram_fill(0x30+cur_action, 1);
   //vram_write(":",1);
+  
   switch(cur_action)
   {
     case ACTION_STAND_BY_GROUND:
@@ -374,10 +378,10 @@ void print_state(byte player,short int adr)
       vram_write("A",1);
       break;
     case ACTION_CROUCHING_TO_JUMP_GROUND:
-      vram_write("C1",1);
+      vram_write("c",1);
       break;
     case ACTION_CROUCHING_GROUND:
-      vram_write("C2",1);
+      vram_write("C",1);
       break;
     //ACTION_HANGING_GROUND=4, //todo
     case ACTION_WALKING_GROUND:
@@ -399,7 +403,8 @@ void print_state(byte player,short int adr)
     default:
       break;
   }
-  a_intent=&actor_intent[player];
+  
+  //a_intent=&actor_intent[player];
   vram_write(",",1);
   if(a_intent->left && a_intent->right)
   {
@@ -441,6 +446,12 @@ void print_state(byte player,short int adr)
   {
     vram_write(".",1);
   }
+  
+  //if(a_state->current_action_frames<10)
+  //{
+  //vram_adr(adr+10+a_state->current_action_frames);
+  //vram_write("-/",2);
+  //}
     
     
   vram_adr(NTADR_A(0,0));
@@ -465,6 +476,8 @@ void simulate_player(unsigned char num)
   signed char id_right=-1;
   signed char id_left=-1;
   
+  Assert(num>NUM_ACTORS);
+
   
   if(num_ai==1)
   {
@@ -662,8 +675,13 @@ void main(void) {
   // set background palette colors
   pal_all(PALETTE);
 
-  initialize_player(0,0,54+10,143);
+  initialize_player(0,0,54+10,143);  
+  //initialize_player(0,0,128,99);
+  
+  #if NUM_ACTORS>1
   initialize_player(1,0,128,99);
+  #endif
+  //for(;;)
   #if NUM_ACTORS>2
   initialize_player(2,0,128,99);
   #endif
@@ -715,8 +733,10 @@ void main(void) {
       num_ai=NUM_ACTORS;
       simulate_player(simulate_i);
       simulate_i+=1;
-      if(simulate_i>NUM_ACTORS)
+      if(simulate_i>NUM_ACTORS-1)
+      {
         simulate_i=0;
+      }
     
     } 
     else
@@ -733,35 +753,43 @@ void main(void) {
           actor_intent[0].right = true;
       }
       
-      // Jump / cancel jump when stat changes. Let simulation update consume intent in between.
+      // Jump / cancel jump when state changes. Let simulation update consume intent in between.
       if(pad_rising & PAD_A)
       {
       	actor_intent[0].jump = true;
       }
-      if((pad & PAD_A )==false && ((last_pad & PAD_A ) ==true))
+      if((pad & PAD_A )==false && actor_intent[0].jump==true)
       {
       	actor_intent[0].jump = false;
       }
 
-      actor_intent[0].fast_fall = pad & PAD_DOWN;
-      actor_intent[0].crouch = pad & PAD_DOWN;
+      actor_intent[0].fast_fall = pad & PAD_DOWN?true:false;
+      actor_intent[0].crouch = pad & PAD_DOWN?true:false;
 
-      num_ai=NUM_ACTORS;
+      num_ai=NUM_ACTORS-1;
+      if(num_ai>0)
+      {
       simulate_player(simulate_i+1);
       simulate_i+=1;
-      if(simulate_i>NUM_ACTORS-1)
+      if(simulate_i>NUM_ACTORS-2)
+      {
         simulate_i=0;
+      }
+      }
     }
     
-    
+    if(clock&0x01)
+    {
+    //actor_intent[0].jump = true;
+    }
+      
     // Actor State and intent physics
-    //todo: split some state updates out
     for (i=0; i<NUM_ACTORS; i++) 
     {
       enum action_state cur_action;
-      bool on_ground;
-      byte action_frames;
-      bool on_edge;
+      bool on_ground=false;
+      byte action_frames=0;
+      bool on_edge=false;
       short int actorxf;
       short int actoryf;
       
@@ -770,6 +798,7 @@ void main(void) {
       a_params=&actor_params[i];
       a_speed_x=&actor_speedx[i];
       a_speed_y=&actor_speedy[i];
+      
       cur_action=a_state->current_action;
       action_frames=a_state->current_action_frames;
       on_ground=ON_GROUND(cur_action);
@@ -871,7 +900,7 @@ void main(void) {
           }
         }
           
-        // Todo:limit start states for crouching.
+        // Todo:limit start states for crouching. Move inside above ifs.
         if(a_intent->crouch 
            && cur_action!=ACTION_CROUCHING_GROUND)
         {
@@ -895,7 +924,7 @@ void main(void) {
             cur_action=ACTION_CROUCHING_TO_JUMP_GROUND;
             action_frames=0;
           }
-          // crouching here unconditionally.
+          // crouch always unconditionally here.
           if (action_frames>=a_params->jump_crouch_frames)
           {
             // Do normal jump
@@ -905,7 +934,8 @@ void main(void) {
             action_frames=0;
           }
         }
-        else if (cur_action==ACTION_CROUCHING_TO_JUMP_GROUND) // Do short jump when cancelling jump early
+        // Do short jump when cancelling jump early.
+        else if (cur_action==ACTION_CROUCHING_TO_JUMP_GROUND)
         {
           *a_speed_y = -a_params->short_hop_force;
           a_intent->jump = false;
@@ -919,7 +949,8 @@ void main(void) {
       // TODO: make state specific.
       *a_speed_x= *a_speed_x*4/5;
       a_state->current_action=cur_action;
-      a_state->current_action_frames=MIN(++action_frames,255);
+      ++action_frames;
+      a_state->current_action_frames=MIN(action_frames,255);
         
     //}
     
@@ -929,7 +960,7 @@ void main(void) {
       {
       
       byte speed_y_in_pixels;
-      bool action_on_ground;
+      bool action_on_ground=false;
       unsigned char sprite_var;
       speed_y_in_pixels=(*a_speed_y>>8);
       
@@ -969,8 +1000,8 @@ void main(void) {
       on_edge = false;
       for(j=0;j<p_count;++j)
       {
-        bool falling;
-        bool on_platform;
+        bool falling=false;
+        bool on_platform=false;
         byte actor_feet_x;
         byte actor_feet_y;
         bool skip_due_to_fall_through;
@@ -1027,6 +1058,7 @@ void main(void) {
       a_state->on_edge=on_edge;
       
       
+      // Fix action based on physical on_ground state.
       action_on_ground = ON_GROUND(a_state->current_action);
       if(!on_ground && action_on_ground) 
       { // fall off edge
@@ -1040,6 +1072,8 @@ void main(void) {
         a_state->current_action_frames=0;
         action_on_ground=true;
       }
+      
+      // Current action may have been invalidated.
       cur_action=a_state->current_action;
       
       // Moving left/right
@@ -1139,7 +1173,7 @@ void main(void) {
     // loop to count extra time in frame
     {
       int i;
-      for(i=0;i<5;++i)
+      for(i=0;i<0;++i)
       {
       }
     }
