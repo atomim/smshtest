@@ -121,7 +121,7 @@ const unsigned char name[]={\
 // !improve input, precalc edge (day 3)
 // !optimize ai randomness (day 3)
 // !edge grab sprite (day 2.5)
-// *edge grab
+// !edge grab
 // *dash
 // *more clear attack/animation state 
 // *crouch
@@ -310,7 +310,7 @@ struct vram_inst
 };
 
 
-#define vram_line_len 31
+#define vram_line_len 32
 
 struct vram_inst vram_line[vram_line_len];
 struct vram_inst vram_line2[vram_line_len];
@@ -751,7 +751,14 @@ void main(void) {
       }
 
       actor_intent[0].fast_fall = pad & PAD_DOWN?true:false;
-      actor_intent[0].crouch = pad_rising & PAD_DOWN?true:false;
+      if(pad_rising & PAD_DOWN)
+      {
+      	actor_intent[0].crouch = true;
+      }
+      else if (pad_falling & PAD_DOWN)
+      {
+        actor_intent[0].crouch = false;
+      }
 
       num_ai=NUM_ACTORS-1;
       if(num_ai>0)
@@ -1041,7 +1048,7 @@ void main(void) {
             grab_box_y=actor_y[i];
             //todo:take direction into account
             //todo: collide with edge
-            if(falling && !a_intent->jump
+            if(falling && !a_intent->jump && !a_intent->fast_fall
                && grab_box_y>=cur_platform->y1
                && grab_box_y<=cur_platform->y2)
             {
@@ -1238,20 +1245,27 @@ void main(void) {
     }
     
     update_debug_info(0,vram_line);
+    
     #if NUM_ACTORS >1
     update_debug_info(1,vram_line+8);
-    #elif NUM_ACTORS >2
+    #endif
+    
+    #if NUM_ACTORS >2
     update_debug_info(2,vram_line+16);
-    #elif NUM_ACTORS >3
+    #endif
+    
+    #if NUM_ACTORS >3
     update_debug_info(3,vram_line+24);
     #endif
+    
+    
     
     // wait for next frame
     {
       // loop to count extra time in frame
       {
         int i;
-        for(i=0;i<80;++i)
+        for(i=0;i<45;++i)
         {
         }
       }
