@@ -134,6 +134,7 @@ const unsigned char name[]={\
 // *neutral attack
 // *clarify states and logic more(enums and masks)
 // *support coordinates outside of screen
+
 // *KO on arena edges, spawning
 // *Make opposite intents mutually exclusive
 // !optimize platform iteration and access (day 3)
@@ -149,6 +150,7 @@ const unsigned char name[]={\
 // !add vegetation
 // !add bg decoration
 // !fix failing jump and add asserts (day 4/5)
+// !fix fall through (day 5)
 
 DEF_METASPRITE_2x2_VARS(char1stand,0xd8);
 DEF_METASPRITE_2x2_VARS(char1crouch,0xdc);
@@ -221,6 +223,7 @@ struct state{
   byte current_action_frames;
   byte double_jumps_left;
   bool on_edge;
+  bool fall_through_triggered;
 };
 struct intent{
   bool left; //todo: add directional intent and apply only with compatible actions
@@ -1009,7 +1012,7 @@ void main(void) {
           cur_platform=&platforms[j];
           actor_feet_x=actor_x[i]+8;
           actor_feet_y=actor_y[i]+17;
-          skip_due_to_fall_through=(a_state->current_action==ACTION_CROUCHING_GROUND && cur_platform->can_fall_through);
+          skip_due_to_fall_through=((a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered) && cur_platform->can_fall_through);
           falling=actor_speedy[i] >= 0;
           /*if(cur_platform->has_edge)
           {
@@ -1038,13 +1041,19 @@ void main(void) {
              && actor_feet_x<cur_platform->x2;
           if(falling
              && on_platform
-             && !skip_due_to_fall_through
-            )
+             )
           {
-            actor_y[i] = cur_platform->y1-17;
-            actor_speedy[i] = 0;
-            actor_yf[i] = 0;
-            on_ground = true;
+            if(skip_due_to_fall_through)
+            {
+              a_state->fall_through_triggered = true;
+            }
+            else
+            {
+              actor_y[i] = cur_platform->y1-17;
+              actor_speedy[i] = 0;
+              actor_yf[i] = 0;
+              on_ground = true;
+            }
           }
           // todo: split condition to improve perf
           // on_edge
@@ -1058,6 +1067,10 @@ void main(void) {
         }
         a_state->on_edge=on_edge;
 
+      	if(on_ground)
+        {
+          a_state->fall_through_triggered = false;
+        }
 
         // Fix action based on physical on_ground state.
         action_on_ground = ON_GROUND(a_state->current_action);
