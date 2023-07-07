@@ -144,7 +144,7 @@ const unsigned char name[]={\
 // !optimize intent access(day 3.5)
 // !optimize physics iteration(day 3.5)
 // !add sprite for edge sway (day 3)
-// /support edge sway
+// *support edge sway
 // !add debug print (day 4)
 // *optimize debug print
 // !add frame drop detection (day 3.5)
@@ -1057,8 +1057,8 @@ void main(void) {
           // todo: split condition to improve perf
           // on_edge
           if(on_platform
-             && ((actor_feet_x<cur_platform->x1+16 && a_state->facing_dir == DIR_LEFT) 
-                 || (actor_feet_x>cur_platform->x2-16&& a_state->facing_dir == DIR_RIGHT))
+             && ((actor_feet_x<cur_platform->x1+6 && a_state->facing_dir == DIR_LEFT) 
+                 || (actor_feet_x>cur_platform->x2-6&& a_state->facing_dir == DIR_RIGHT))
              )
           {
             on_edge=true;
