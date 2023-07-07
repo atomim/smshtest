@@ -200,20 +200,23 @@ enum action_state
   ACTION_DASHING_GROUND=7,
   ACTION_TURNING_AROUND_GROUND=8, // todo
   ACTION_STOPPING_GROUND=9, // todo
-  ACTION_EDGE_GRAB_GROUND=10, //todo
   ACTION_FAST_FALLING_AIR=11, 
   ACTION_ATTACK_GROUND=12, // todo
   ACTION_ATTACK_AIR=13 // todo
 };
 
+unsigned char action_state_to_char[14] = {'S','A','c','C','H','W','R','D','T','s','F','!','/'};
+
 #define ON_GROUND(state) (((state)!=ACTION_STAND_BY_AIR)&&((state)!=ACTION_FAST_FALLING_AIR)&&((state)!=ACTION_ATTACK_AIR))
 
 enum dir
 {
-  DIR_LEFT,
-  DIR_RIGHT,
-  DIR_NONE
+  DIR_LEFT = 0,
+  DIR_RIGHT = 1,
+  DIR_NONE = 2,
 };
+
+unsigned char dir_to_char[3] = {'L','R','.'};
 
 
 struct state{
@@ -241,6 +244,7 @@ struct intent{
   bool dash;
   bool fast_fall;
 };
+
 
 struct params{
   short int jump_force;
@@ -303,6 +307,7 @@ struct vram_inst
   unsigned char _3_sta_addr_07;
   unsigned char _4_sta_addr_20;
 };
+
 
 #define vram_line_len 31
 
@@ -399,59 +404,18 @@ void reset_level_and_bg()
 void update_debug_info(byte player,struct vram_inst* inst)
 {
   enum action_state cur_action=actor_state[player].current_action;
+
+  inst->_1_lda_val = action_state_to_char[cur_action];
+  inst++;
+  
   inst->_1_lda_val = 0x30+cur_action;
   inst++;
-  switch(cur_action)
-  {
-    case ACTION_STAND_BY_GROUND:
-      inst->_1_lda_val = 'S';
-      break;
-    case ACTION_STAND_BY_AIR:
-      inst->_1_lda_val = 'A';
-      break;
-    case ACTION_CROUCHING_TO_JUMP_GROUND:
-      inst->_1_lda_val = 'c';
-      break;
-    case ACTION_CROUCHING_GROUND:
-      inst->_1_lda_val = 'C';
-      break;
-    //ACTION_HANGING_GROUND=4, //todo
-    case ACTION_WALKING_GROUND:
-      inst->_1_lda_val = 'W';
-      break;
-    case ACTION_RUNNING_GROUND:
-      inst->_1_lda_val = 'R';
-      break;
-    case ACTION_DASHING_GROUND:
-      inst->_1_lda_val = 'D';
-      break;
-    //ACTION_TURNING_AROUND_GROUND=8, // todo
-    //ACTION_STOPPING_GROUND=9, // todo
-    case ACTION_FAST_FALLING_AIR:
-      inst->_1_lda_val = 'F';
-      break;
-    //ACTION_ATTACK_GROUND=11, // todo
-    //ACTION_ATTACK_AIR=12 // todo
-    default:
-      inst->_1_lda_val = '?';
-      break;
-  }
-  inst++;
+  
   a_intent=&actor_intent[player];
-  //vram_write(",",1);
-  if(a_intent->dir == DIR_RIGHT)
-  {
-    inst->_1_lda_val = 'R';
-  }
-  else if(a_intent->dir = DIR_LEFT)
-  {
-    inst->_1_lda_val = 'L';
-  }
-  else
-  {
-    inst->_1_lda_val = '.';
-  }
+  
+  inst->_1_lda_val = dir_to_char[a_intent->dir];
   inst++;
+  
   if(a_intent->jump)
   {
     inst->_1_lda_val = 'J';
@@ -461,6 +425,7 @@ void update_debug_info(byte player,struct vram_inst* inst)
     inst->_1_lda_val = '.';
   }
   inst++;
+  
   if(a_intent->crouch)
   {
     inst->_1_lda_val = 'C';
@@ -470,6 +435,7 @@ void update_debug_info(byte player,struct vram_inst* inst)
     inst->_1_lda_val = '.';
   }
   inst++;
+  
   if(a_intent->fast_fall)
   {
     inst->_1_lda_val = 'F';
@@ -479,8 +445,6 @@ void update_debug_info(byte player,struct vram_inst* inst)
     inst->_1_lda_val = '.';
   }
   
-  //inst++;
-  //inst->_1_lda_val = '!';
 }
 
 char num_ai;
@@ -1209,9 +1173,9 @@ void main(void) {
     }
     
     update_debug_info(0,vram_line);
-    update_debug_info(1,vram_line+8);
-    update_debug_info(2,vram_line+16);
-    update_debug_info(3,vram_line+24);
+    //update_debug_info(1,vram_line+8);
+    //update_debug_info(2,vram_line+16);
+    //update_debug_info(3,vram_line+24);
     
     // wait for next frame
     {
