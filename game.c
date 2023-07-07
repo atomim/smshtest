@@ -1153,68 +1153,70 @@ void main(void) {
     
     
     // Update Sprites
-
-    // start with OAMid/sprite 0
-    oam_id = 0;
-    // draw and move all actors
-    for (i=0; i<NUM_ACTORS; i++) {
-      // TODO: add camera
-      oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, actor_sprite[i]);
-    }
-    // hide rest of sprites
-    // if we haven't wrapped oam_id around to 0
-    if (oam_id!=0) oam_hide_rest(oam_id);
-    // wait for next frame
-    
-    // loop to count extra time in frame
     {
-      int i;
-      for(i=0;i<0;++i)
-      {
+      // start with OAMid/sprite 0
+      oam_id = 0;
+      // draw and move all actors
+      for (i=0; i<NUM_ACTORS; i++) {
+        // TODO: add camera
+        oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, actor_sprite[i]);
       }
+      // hide rest of sprites
+      // if we haven't wrapped oam_id around to 0
+      if (oam_id!=0) oam_hide_rest(oam_id);
     }
-    
-    ppu_wait_nmi();
-    //player intents/actions
+    // wait for next frame
+    {
+      // loop to count extra time in frame
+      {
+        int i;
+        for(i=0;i<0;++i)
+        {
+        }
+      }
+      ppu_wait_nmi();
+    }
     
     
     // detect frame drops
-    PPU.mask =0x0;
-    
-    newclock = nesclock();
-    if(newclock-clock>1)
     {
-      // Todo: replace by PPU accessor.
-      __asm__("lda $2002");
-      __asm__("lda #$3F");
-      __asm__("sta $2006");
-      __asm__("lda #$00");
-      __asm__("sta $2006");
-      __asm__("lda #$16");
-      __asm__("sta $2007");
-      //pal_col(0,0x16);
+      PPU.mask =0x0;
 
-    }
-    else
-    {
-      __asm__("bit $2002");
-      PPU.vram.address =0x3f;
-      PPU.vram.address =0x00;
-      //if(clock&0x1)
+      newclock = nesclock();
+      if(newclock-clock>1)
       {
-        //PPU.vram.data = 0x0c;
-      }
-      //else
-      {
-        PPU.vram.data = 0x1c;
-      }
-    }
-    clock=newclock;
+        // Todo: replace by PPU accessor.
+        __asm__("lda $2002");
+        __asm__("lda #$3F");
+        __asm__("sta $2006");
+        __asm__("lda #$00");
+        __asm__("sta $2006");
+        __asm__("lda #$16");
+        __asm__("sta $2007");
+        //pal_col(0,0x16);
 
-    PPU.control=0b11000000;
-    PPU.scroll=0x00;
-    PPU.scroll=0x02;
-    PPU.mask =0b00011110;
+      }
+      else
+      {
+        __asm__("bit $2002");
+        PPU.vram.address =0x3f;
+        PPU.vram.address =0x00;
+        //if(clock&0x1)
+        {
+          //PPU.vram.data = 0x0c;
+        }
+        //else
+        {
+          PPU.vram.data = 0x1c;
+        }
+      }
+      clock=newclock;
+
+      PPU.control=0b11000000;
+      PPU.scroll=0x00;
+      PPU.scroll=0x02;
+      PPU.mask =0b00011110;
+    }
     
 
   }
