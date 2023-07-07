@@ -273,7 +273,7 @@ struct platform{
   byte has_edge;
 };
 
-#define NUM_ACTORS 4
+#define NUM_ACTORS 1
 #define NUM_PLATFORMS 4
 
 byte actor_x[NUM_ACTORS];      // Position
@@ -758,7 +758,9 @@ void main(void) {
       {
       simulate_player(simulate_i+1);
       simulate_i+=1;
+      #if NUM_ACTORS >1
       if(simulate_i>NUM_ACTORS-2)
+      #endif
       {
         simulate_i=0;
       }
@@ -1007,25 +1009,52 @@ void main(void) {
           actor_feet_y=actor_y[i]+17;
           skip_due_to_fall_through=((a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered) && cur_platform->can_fall_through);
           falling=actor_speedy[i] >= 0;
-          /*if(cur_platform->has_edge)
+          
+          // Side collision and grab
+          if(!on_platform && cur_platform->has_edge)
           {
-            byte grab_box_x1;
-            byte grab_box_x2;
-            byte grab_box_y;
+            //byte grab_box_x1;
+            //byte grab_box_x2;
+            //byte grab_box_y;
+            
+            // collision to edge
+            if(actor_y[i]<cur_platform->y2 
+               && actor_feet_y>cur_platform->y1
+              )
+            {
+              if(actor_feet_x>cur_platform->x1
+                && actor_feet_x<cur_platform->x1+8)
+              {
+              	actor_x[i]=cur_platform->x1-8;
+              } 
+              else if (actor_feet_x<cur_platform->x2
+                       && actor_feet_x>cur_platform->x2-8)
+              {
+                actor_x[i]=cur_platform->x2-8;
+              }
+            }
+            
+            // grab
+            
+            /*
             grab_box_x1=actor_feet_x-6;
             grab_box_x2=actor_feet_x+6;
-            grab_box_y=actor_y[i]+1;
+            grab_box_y=actor_y[i]+6;
             //todo:take direction into account
             //todo: collide with edge
-            if(actor_feet_y>=cur_platform->y1
-             && actor_feet_y<=cur_platform->y2
-             && actor_feet_x>cur_platform->x1
-             && actor_feet_x<cur_platform->x2
+            if(grab_box_y>=cur_platform->y1
+             && grab_box_y<=cur_platform->y2
+             && grab_box_x1>cur_platform->x1
+             && grab_box_x2<cur_platform->x2
               )
             {
               //todo: grab
+              i++;
+              i--;
+              a_po
             }
-          }*/
+            */
+          }
           // normal collision
           on_platform=
              actor_feet_y>=cur_platform->y1-speed_y_in_pixels
@@ -1057,6 +1086,7 @@ void main(void) {
           {
             on_edge=true;
           }
+          
         }
         a_state->on_edge=on_edge;
 
@@ -1187,9 +1217,13 @@ void main(void) {
     }
     
     update_debug_info(0,vram_line);
+    #if NUM_ACTORS >1
     update_debug_info(1,vram_line+8);
+    #elif NUM_ACTORS >2
     update_debug_info(2,vram_line+16);
+    #elif NUM_ACTORS >3
     update_debug_info(3,vram_line+24);
+    #endif
     
     // wait for next frame
     {
