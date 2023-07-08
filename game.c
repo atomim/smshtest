@@ -122,18 +122,19 @@ const unsigned char name[]={\
 // !optimize ai randomness (day 3)
 // !edge grab sprite (day 2.5)
 // !edge grab (day 5)
-// !dash (day 5.5)
-// *dash to have effect 
+// /dash attack animation (day 5.5)
+// *double tap dash
+// /dash attack
 // *more clear attack/animation state 
-// *crouch
-// *better fall through control
+// !crouch
+// !better fall through control
 // *crouch dash cancel
 // *running inertia
 // *Implement target speed and acceleration per action
 // *dash dancing support
 // *dash attack
 // !ai to avoid falling off(day 3)
-// *neutral attack
+// *neutral attack (day 5.5)
 // *clarify states and logic more(enums and masks)
 // *support coordinates outside of screen
 // *KO on arena edges, spawning
@@ -156,6 +157,7 @@ const unsigned char name[]={\
 // !fix fall through (day 5)
 // *fix perf of indexing spritess
 
+DEF_METASPRITE_2x2_VARS(char1neutral,0xd4);
 DEF_METASPRITE_2x2_VARS(char1stand,0xd8);
 DEF_METASPRITE_2x2_VARS(char1crouch,0xdc);
 DEF_METASPRITE_2x2_VARS(char1run,0xec);
@@ -199,17 +201,15 @@ enum action_state
   ACTION_HANGING_GROUND=4, //todo
   ACTION_WALKING_GROUND=5,
   ACTION_RUNNING_GROUND=6,
-  ACTION_DASHING_GROUND=7,
+  ACTION_DASHING_GROUND=7, // Todo: Refactor to "Animated attack"
   ACTION_TURNING_AROUND_GROUND=8, // todo
   ACTION_STOPPING_GROUND=9, // todo
   ACTION_FAST_FALLING_AIR=11, 
-  ACTION_ATTACK_GROUND=12, // todo
-  ACTION_ATTACK_AIR=13 // todo
 };
 
-unsigned char action_state_to_char[14] = {'S','A','c','C','H','W','R','D','T','s','F','!','/'};
+unsigned char action_state_to_char[14] = {'S','A','c','C','H','W','R','D','T','s','F'};
 
-#define ON_GROUND(state) (((state)!=ACTION_STAND_BY_AIR)&&((state)!=ACTION_FAST_FALLING_AIR)&&((state)!=ACTION_ATTACK_AIR))
+#define ON_GROUND(state) (((state)!=ACTION_STAND_BY_AIR)&&((state)!=ACTION_FAST_FALLING_AIR))
 
 enum dir
 {
@@ -220,18 +220,28 @@ enum dir
 
 unsigned char dir_to_char[3] = {'L','R','.'};
 
+enum attack_type
+{
+  ATTACK_NONE=0,
+  ATTACK_NORMAL_LEFT=1,
+  ATTACK_NORMAL_RIGHT=2,
+  ATTACK_DASH=3,
+};
+
 
 struct state{
   enum action_state current_action;
   //bool on_ground;
   enum dir moving_dir;
   enum dir facing_dir;
+  enum attack_type current_attack;
   bool direction_changed;
   // hanging
   //byte movement_hold_frames; // for crouch canceling dash, move to params
   //byte attack_hold_frames;   // for attacks
   //byte running;
   byte current_action_frames;
+  byte current_attack_frames_left;
   byte double_jumps_left;
   bool on_edge;
   bool fall_through_triggered;
@@ -259,6 +269,7 @@ struct params{
   byte frames_to_run;
   byte double_jumps;
   byte jump_crouch_frames;
+  byte attack_neutral_frames;
   short int fall_force;
   short int fall_limit;
   short int fast_fall;
@@ -622,6 +633,7 @@ void initialize_player(byte num, byte type, byte x, byte y)
       actor_params[num].dash_frames = 15;       // Z (M)
       actor_params[num].double_jumps = 1;       // 1 (All)
       actor_params[num].jump_crouch_frames = 6; // 6 (M)
+      actor_params[num].attack_neutral_frames = 6; // try something
       actor_params[num].fall_force = 22;        // 0.11 (M, Grav)
       actor_params[num].fall_limit = 436;       // 2.13 (M)
       actor_params[num].fast_fall = 614;        // 3 (M)
@@ -806,6 +818,14 @@ void main(void) {
       action_frames=a_state->current_action_frames;
       on_ground=ON_GROUND(cur_action);
       
+      if(a_state->current_attack_frames_left>0)
+      {
+      	a_state->current_attack_frames_left--;
+      }
+      else
+      {
+        a_state->current_attack = ATTACK_NONE;
+      }
       
       
       if (!on_ground) // on air
@@ -852,6 +872,14 @@ void main(void) {
       {
         // Reset fast fall intent on ground. Todo:move after input.
         a_intent->fast_fall=false;
+        
+        if(a_intent->attack && cur_action != ACTION_DASHING_GROUND) // todo: switch to check animated/cancelable attack
+        {
+          *a_speed_x = 0;
+          a_state->current_attack = ATTACK_NORMAL_RIGHT;
+          a_state->current_attack_frames_left = a_params->attack_neutral_frames;
+          cur_action = ACTION_STAND_BY_GROUND;
+        }
         
         if(cur_action==ACTION_STAND_BY_GROUND)
         {
@@ -1221,7 +1249,11 @@ void main(void) {
         // TODO: Implement LUT instead of a lot of ifs.
         if(action_on_ground)
         {
-          if(cur_action==ACTION_RUNNING_GROUND)
+          if(a_state->current_attack != ATTACK_NONE)
+          {
+            actor_sprite[i] = char1neutral_sprites[sprite_var];
+          }
+          else if(cur_action==ACTION_RUNNING_GROUND)
           {
             actor_sprite[i] = char1run_sprites[sprite_var];
           }
