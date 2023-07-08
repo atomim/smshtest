@@ -121,8 +121,9 @@ const unsigned char name[]={\
 // !improve input, precalc edge (day 3)
 // !optimize ai randomness (day 3)
 // !edge grab sprite (day 2.5)
-// !edge grab
-// *dash
+// !edge grab (day 5)
+// !dash (day 5.5)
+// *dash to have effect 
 // *more clear attack/animation state 
 // *crouch
 // *better fall through control
@@ -138,7 +139,7 @@ const unsigned char name[]={\
 // *KO on arena edges, spawning
 // !make opposite directions mutually exclusive (day 5)
 // !keep last facing direction when stopping (day 5)
-// !Fix fast fall falling through
+// !Fix fast fall falling through (day 5)
 // !optimize platform iteration and access (day 3)
 // !warn on frame drops (day 3)
 // !optimize player iteration(day 2.5)
@@ -149,8 +150,8 @@ const unsigned char name[]={\
 // !add debug print (day 4)
 // !optimize debug print
 // !add frame drop detection (day 3.5)
-// !add vegetation
-// !add bg decoration
+// !add vegetation (day 4)
+// !add bg decoration (day 4)
 // !fix failing jump and add asserts (day 4/5)
 // !fix fall through (day 5)
 // *fix perf of indexing spritess
@@ -244,6 +245,7 @@ struct intent{
   bool crouch;
   bool dash;
   bool fast_fall;
+  bool attack;
 };
 
 
@@ -529,6 +531,7 @@ void simulate_player(unsigned char num)
   }
   {
     char i;
+    // consume cpu to balance lower values to make ai cpu usage more predictable.
     for(i=MIN(20,r128);i>0;--i)
     {
     }
@@ -571,6 +574,8 @@ void simulate_player(unsigned char num)
         break;
       case 11:
       case 12:
+        actor_intent[num].attack = true;
+        break;
       case 13:
       case 14:
       case 15:
@@ -614,7 +619,7 @@ void initialize_player(byte num, byte type, byte x, byte y)
       actor_params[num].run_speed = 328;        // 1.6 (M, young, 1.2 old)
       actor_params[num].frames_to_run = 30;     // 2s (custom)
       actor_params[num].dash_speed = 367;       // 1.8 (M)
-      actor_params[num].dash_frames = 367;       // 1.8 (M)
+      actor_params[num].dash_frames = 15;       // Z (M)
       actor_params[num].double_jumps = 1;       // 1 (All)
       actor_params[num].jump_crouch_frames = 6; // 6 (M)
       actor_params[num].fall_force = 22;        // 0.11 (M, Grav)
@@ -759,6 +764,11 @@ void main(void) {
       {
         actor_intent[0].crouch = false;
       }
+      
+      if(pad_rising & PAD_B)
+      {
+        actor_intent[0].attack = true;
+      }
 
       num_ai=NUM_ACTORS-1;
       if(num_ai>0)
@@ -877,7 +887,12 @@ void main(void) {
         }
         if(cur_action==ACTION_RUNNING_GROUND)
         {
-          if(a_intent->dir == DIR_LEFT)
+          if(a_intent->attack)
+          {
+            cur_action=ACTION_DASHING_GROUND;
+            action_frames=0;
+          }
+          else if(a_intent->dir == DIR_LEFT)
           {
             *a_speed_x=-a_params->run_speed;
           }
@@ -890,6 +905,32 @@ void main(void) {
             // todo:skidding
             // todo:dashing
             cur_action=ACTION_STAND_BY_GROUND;
+            action_frames=0;
+          }
+        }
+        if(cur_action==ACTION_DASHING_GROUND)
+        {
+          if(a_state->moving_dir == DIR_LEFT)
+          {
+            *a_speed_x=-a_params->dash_speed;
+          }
+          else if(a_state->moving_dir == DIR_RIGHT)
+          {
+            *a_speed_x=a_params->dash_speed;
+          }
+          
+          if(action_frames>a_params->dash_frames)
+          {
+            // todo:skidding
+            // todo:dashing
+            if(a_intent->dir == a_state->moving_dir)
+            {
+              cur_action=ACTION_RUNNING_GROUND;
+            }
+            else
+            {
+              cur_action=ACTION_STAND_BY_GROUND;
+            }
             action_frames=0;
           }
         }
@@ -955,6 +996,7 @@ void main(void) {
           *a_speed_x= MIN(0,*a_speed_x);
         }
       }
+      a_intent->attack = false;
       a_state->current_action=cur_action;
       ++action_frames;
       a_state->current_action_frames=MIN(action_frames,255);
@@ -1203,6 +1245,10 @@ void main(void) {
           {
             actor_sprite[i] = char1ledge_sprites[sprite_var];
           }
+          else if(cur_action==ACTION_DASHING_GROUND)
+          {
+            actor_sprite[i] = char1dash_sprites[sprite_var];
+          }
           else
           {
             // Todo: handle jump crouch as part of animation instead of last case
@@ -1221,6 +1267,8 @@ void main(void) {
           }
         }
       }
+      
+      
       
       if(i<NUM_ACTORS)
       {
