@@ -1048,7 +1048,10 @@ void main(void) {
             grab_box_y=actor_y[i];
             //todo:take direction into account
             //todo: collide with edge
-            if(falling && !a_intent->jump && !a_intent->fast_fall
+            if(falling 
+               && !a_intent->jump 
+               && !a_intent->fast_fall
+               && !a_intent->crouch
                && grab_box_y>=cur_platform->y1
                && grab_box_y<=cur_platform->y2)
             {
