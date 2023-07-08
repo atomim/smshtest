@@ -158,6 +158,7 @@ const unsigned char name[]={\
 // *fix perf of indexing spritess
 
 DEF_METASPRITE_2x2_VARS(char1icon,0xd0);
+DEF_METASPRITE_2x2_VARS(char13lives,0xac);
 
 DEF_METASPRITE_2x2_VARS(char1neutral,0xd4);
 DEF_METASPRITE_2x2_VARS(char1stand,0xd8);
@@ -313,6 +314,8 @@ struct params* a_params;
 struct platform* cur_platform;
 short int* a_speed_x;
 short int* a_speed_y;
+void ** a_sprite;
+void ** a_icon;
 #pragma bss-name (pop)
 #pragma data-name(pop)
 
@@ -330,6 +333,8 @@ struct vram_inst
 
 struct vram_inst vram_line[vram_line_len];
 struct vram_inst vram_line2[vram_line_len];
+
+byte icon_pos_x[]={16,72,128,184};
 
 void init_vram_line(struct vram_inst* inst)
 {
@@ -481,16 +486,14 @@ void simulate_player(unsigned char num)
 {
   // TODO: optimize perf
   unsigned int r = rand();
-  
-  // todo: balance chances based on amount of ai's
-  unsigned char r128;
-  
-  unsigned char j;
-  //short int dy=;
-  //char dx;
   signed char id_under =-1;
   signed char id_right=-1;
   signed char id_left=-1;
+  
+  // todo: balance chances based on amount of ai's
+  unsigned char r128;
+  unsigned char j;
+
   
   Assert(num>NUM_ACTORS);
 
@@ -522,13 +525,11 @@ void simulate_player(unsigned char num)
   
   //unsigned char closest_platform = 0;
   // find closest platforms for AI
+  cur_platform=platforms;
   for(j=0;j<p_count;++j)
   {
-    bool isLeft;
-    bool isRight;
-    cur_platform=&platforms[j];
-    isLeft = actor_x[num]+8>cur_platform->x1;
-    isRight = actor_x[num]+8<cur_platform->x2;
+    bool isLeft = actor_x[num]+8>cur_platform->x1;
+    bool isRight = actor_x[num]+8<cur_platform->x2;
 
     if(isLeft&&isRight)
     {
@@ -552,13 +553,15 @@ void simulate_player(unsigned char num)
         //todo: make sure it is closest
       }
     }
-
+    cur_platform++;
   }
   {
     char i;
     // consume cpu to balance lower values to make ai cpu usage more predictable.
     for(i=MIN(20,r128);i>0;--i)
     {
+      ++i;
+      --i;
     }
     switch(r128)
     {
@@ -1082,12 +1085,11 @@ void main(void) {
     for (i=0; i<NUM_ACTORS; i++) 
     {
       bool on_ground=false;
-      enum action_state cur_action;
-      cur_action=a_state->current_action;
+      enum action_state cur_action=a_state->current_action;
       
       // Process attacks
       
-      for(j = 0; j<NUM_ACTORS;j++)
+      //for(j = 0; j<NUM_ACTORS;j++)
       {
         
       }
@@ -1099,10 +1101,9 @@ void main(void) {
         short int actorxf;
         short int actoryf;
         bool on_edge;
-        byte speed_y_in_pixels;
         bool action_on_ground=false;
-        unsigned char sprite_var;
-        speed_y_in_pixels=(*a_speed_y>>8);
+        byte speed_y_in_pixels=(*a_speed_y>>8);
+
 
         actorxf = actor_xf[i]+*a_speed_x;
         actoryf = actor_yf[i]+*a_speed_y;
@@ -1301,64 +1302,67 @@ void main(void) {
         // Select sprite
         // TODO: deduplicate
         // todo: improve facing difection.
-        if(a_state->facing_dir == DIR_RIGHT)//right
-        {
-          sprite_var=i;
-        }
-        else
-        {
-          sprite_var=i+4;
-        }
-        // TODO: Implement LUT instead of a lot of ifs.
-        if(action_on_ground)
-        {
-          if(a_state->current_attack != ATTACK_NONE)
+        {         
+          unsigned char sprite_var;
+          if(a_state->facing_dir == DIR_RIGHT)//right
           {
-            actor_sprite[i] = char1neutral_sprites[sprite_var];
+            sprite_var=i;
           }
-          else if(cur_action==ACTION_RUNNING_GROUND)
+          else
           {
-            actor_sprite[i] = char1run_sprites[sprite_var];
+            sprite_var=i+4;
           }
-          else if(cur_action==ACTION_CROUCHING_GROUND)
+          // TODO: Implement LUT instead of a lot of ifs.
+          if(action_on_ground)
           {
-            actor_sprite[i] = char1crouch_sprites[sprite_var];
-          }
-          else if(cur_action==ACTION_STAND_BY_GROUND 
-                  || cur_action==ACTION_WALKING_GROUND)
-          {
-            if(a_state->on_edge)
+            if(a_state->current_attack != ATTACK_NONE)
             {
-              actor_sprite[i] = char1sway_sprites[sprite_var];
+              actor_sprite[i] = char1neutral_sprites[sprite_var];
+            }
+            else if(cur_action==ACTION_RUNNING_GROUND)
+            {
+              actor_sprite[i] = char1run_sprites[sprite_var];
+            }
+            else if(cur_action==ACTION_CROUCHING_GROUND)
+            {
+              actor_sprite[i] = char1crouch_sprites[sprite_var];
+            }
+            else if(cur_action==ACTION_STAND_BY_GROUND 
+                    || cur_action==ACTION_WALKING_GROUND)
+            {
+              if(a_state->on_edge)
+              {
+                actor_sprite[i] = char1sway_sprites[sprite_var];
+              }
+              else
+              {
+                actor_sprite[i] = char1stand_sprites[sprite_var];
+              }
+            }
+            else if(cur_action==ACTION_HANGING_GROUND)
+            {
+              actor_sprite[i] = char1ledge_sprites[sprite_var];
+            }
+            else if(cur_action==ACTION_DASHING_GROUND)
+            {
+              actor_sprite[i] = char1dash_sprites[sprite_var];
             }
             else
             {
-              actor_sprite[i] = char1stand_sprites[sprite_var];
+              // Todo: handle jump crouch as part of animation instead of last case
+              actor_sprite[i] = char1crouch_sprites[sprite_var];
             }
           }
-          else if(cur_action==ACTION_HANGING_GROUND)
-          {
-            actor_sprite[i] = char1ledge_sprites[sprite_var];
-          }
-          else if(cur_action==ACTION_DASHING_GROUND)
-          {
-            actor_sprite[i] = char1dash_sprites[sprite_var];
-          }
           else
           {
-            // Todo: handle jump crouch as part of animation instead of last case
-            actor_sprite[i] = char1crouch_sprites[sprite_var];
-          }
-        }
-        else
-        {
-          if(actor_intent[i].fast_fall) // Todo: use state instead of intent.
-          {
-            actor_sprite[i] = char1fast_fall_sprites[sprite_var];
-          }
-          else
-          {
-            actor_sprite[i] = char1jump_sprites[sprite_var];
+            if(actor_intent[i].fast_fall) // Todo: use state instead of intent.
+            {
+              actor_sprite[i] = char1fast_fall_sprites[sprite_var];
+            }
+            else
+            {
+              actor_sprite[i] = char1jump_sprites[sprite_var];
+            }
           }
         }
       }
@@ -1378,13 +1382,24 @@ void main(void) {
     
     // Update Sprites
     {
+      a_sprite=actor_sprite;
       // start with OAMid/sprite 0
       oam_id = 0;
       // draw and move all actors
-      for (i=0; i<NUM_ACTORS; i++) {
+      for (i=0; i<NUM_ACTORS; i++) 
+      {
         // TODO: add camera
-        oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, actor_sprite[i]);
-        oam_id = oam_meta_spr((i<<6)+9, 190, oam_id, char1icon_sprites[i]);
+        oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, *a_sprite);
+        a_sprite++;
+      }
+      
+      a_icon=char1icon_sprites;
+      for (i=0; i<NUM_ACTORS; i++) 
+      {
+        byte x=icon_pos_x[i];
+        oam_id = oam_meta_spr(x, 190, oam_id, *a_icon);
+        oam_id = oam_meta_spr(x+3, 200, oam_id, char13lives_sprites[i]);
+        a_icon++;
       }
       // hide rest of sprites
       // if we haven't wrapped oam_id around to 0
@@ -1394,24 +1409,24 @@ void main(void) {
     {
       a_state=actor_state;
       //update_debug_info(0,vram_line);
-      update_player_status(vram_line2+3);
+      update_player_status(vram_line2+4);
 
       #if NUM_ACTORS >1
       a_state++;
       //update_debug_info(1,vram_line+8);
-      update_player_status(vram_line2+11);
+      //update_player_status(vram_line2+11);
       #endif
 
       #if NUM_ACTORS >2
       a_state++;
       //update_debug_info(2,vram_line+16);
-      update_player_status(vram_line2+19);
+      //update_player_status(vram_line2+18);
       #endif
 
       #if NUM_ACTORS >3
       a_state++;
       //update_debug_info(3,vram_line+24);
-      update_player_status(vram_line2+27);
+      //update_player_status(vram_line2+25);
       #endif
     }
     
@@ -1421,8 +1436,8 @@ void main(void) {
     {
       // loop to count extra time in frame
       {
-        int i;
-        for(i=0;i<00;++i)
+        //int i;
+        //for(i=0;i<0;++i)
         {
         }
       }
