@@ -157,6 +157,8 @@ const unsigned char name[]={\
 // !fix fall through (day 5)
 // *fix perf of indexing spritess
 
+DEF_METASPRITE_2x2_VARS(char1icon,0xd0);
+
 DEF_METASPRITE_2x2_VARS(char1neutral,0xd4);
 DEF_METASPRITE_2x2_VARS(char1stand,0xd8);
 DEF_METASPRITE_2x2_VARS(char1crouch,0xdc);
@@ -231,6 +233,7 @@ enum attack_type
 
 struct state{
   enum action_state current_action;
+  byte damage;
   //bool on_ground;
   enum dir moving_dir;
   enum dir facing_dir;
@@ -414,6 +417,17 @@ void reset_level_and_bg()
   vram_write(ATTRIBUTE_TABLE, sizeof(ATTRIBUTE_TABLE));
 
 }
+
+void update_player_status(struct vram_inst* inst)
+{
+  byte damage = a_state->damage;
+  inst->_1_lda_val = '0'+(damage>>4);
+  inst++;
+  inst->_1_lda_val = '0'+damage&0b11110000;
+  inst++;
+  inst->_1_lda_val = '%';
+}
+
 
 void update_debug_info(byte player,struct vram_inst* inst)
 {
@@ -646,9 +660,10 @@ void initialize_player(byte num, byte type, byte x, byte y)
 char clock=0;
 void __fastcall__ irq_nmi_callback(void) 
 {
-  vram_adr(NTADR_A(1,27));
+  vram_adr(NTADR_A(1,26));
   __asm__("jsr %v",vram_line);
   //vram_adr(NTADR_A(1,26));
+  vram_adr(NTADR_A(1,25));
   __asm__("jsr %v",vram_line2);
   //print_state(0,NTADR_A(1,27));
 
@@ -694,7 +709,7 @@ void main(void) {
   //
   if (demo_mode_on)
   {
-    vram_adr(NTADR_A(1,26));
+    vram_adr(NTADR_A(1,27));
     vram_write("Press START to stop Demo mode.", 30);
   }
 
@@ -1028,11 +1043,59 @@ void main(void) {
       a_state->current_action=cur_action;
       ++action_frames;
       a_state->current_action_frames=MIN(action_frames,255);
+      
+      if(i<NUM_ACTORS)
+      {
+        a_state++;
+        a_intent++;
+        a_params++;
+        a_speed_x++;
+        a_speed_y++;
+      }
+    }
+    a_state=actor_state;
+    a_intent=actor_intent;
+    a_params=actor_params;
+    a_speed_x=actor_speedx;
+    a_speed_y=actor_speedy;
+
+    // Actor State and intent physics
+    for (i=0; i<NUM_ACTORS; i++) 
+    {
+      if(i<NUM_ACTORS)
+      {
+        a_state++;
+        a_intent++;
+        a_params++;
+        a_speed_x++;
+        a_speed_y++;
+      }
+    }
+    
+    a_state=actor_state;
+    a_intent=actor_intent;
+    a_params=actor_params;
+    a_speed_x=actor_speedx;
+    a_speed_y=actor_speedy;
+
+    // Actor State and intent physics
+    for (i=0; i<NUM_ACTORS; i++) 
+    {
+      bool on_ground=false;
+      enum action_state cur_action;
+      cur_action=a_state->current_action;
+      
+      // Process attacks
+      
+      for(j = 0; j<NUM_ACTORS;j++)
+      {
         
+      }
+      
     //}
     
-    // Actor Physics
-    {
+      // Actor Physics
+      {
         short int actorxf;
         short int actoryf;
         bool on_edge;
@@ -1321,25 +1384,36 @@ void main(void) {
       for (i=0; i<NUM_ACTORS; i++) {
         // TODO: add camera
         oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, actor_sprite[i]);
+        oam_id = oam_meta_spr((i<<6)+9, 190, oam_id, char1icon_sprites[i]);
       }
       // hide rest of sprites
       // if we haven't wrapped oam_id around to 0
       if (oam_id!=0) oam_hide_rest(oam_id);
     }
     
-    update_debug_info(0,vram_line);
-    
-    #if NUM_ACTORS >1
-    update_debug_info(1,vram_line+8);
-    #endif
-    
-    #if NUM_ACTORS >2
-    update_debug_info(2,vram_line+16);
-    #endif
-    
-    #if NUM_ACTORS >3
-    update_debug_info(3,vram_line+24);
-    #endif
+    {
+      a_state=actor_state;
+      //update_debug_info(0,vram_line);
+      update_player_status(vram_line2+3);
+
+      #if NUM_ACTORS >1
+      a_state++;
+      //update_debug_info(1,vram_line+8);
+      update_player_status(vram_line2+11);
+      #endif
+
+      #if NUM_ACTORS >2
+      a_state++;
+      //update_debug_info(2,vram_line+16);
+      update_player_status(vram_line2+19);
+      #endif
+
+      #if NUM_ACTORS >3
+      a_state++;
+      //update_debug_info(3,vram_line+24);
+      update_player_status(vram_line2+27);
+      #endif
+    }
     
     
     
@@ -1348,7 +1422,7 @@ void main(void) {
       // loop to count extra time in frame
       {
         int i;
-        for(i=0;i<45;++i)
+        for(i=0;i<00;++i)
         {
         }
       }
