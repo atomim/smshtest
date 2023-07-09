@@ -235,7 +235,7 @@ enum attack_type
 
 struct state{
   enum action_state current_action;
-  byte damage;
+  short int damage;
   //bool on_ground;
   enum dir moving_dir;
   enum dir facing_dir;
@@ -336,7 +336,7 @@ struct vram_inst
 struct vram_inst vram_line[vram_line_len];
 struct vram_inst vram_line2[vram_line_len];
 
-byte icon_pos_x[]={16,72,128,184};
+static const byte icon_pos_x[]={16+4,72+4,128+4,184+4};
 
 void init_vram_line(struct vram_inst* inst)
 {
@@ -427,18 +427,32 @@ void reset_level_and_bg()
 
 void update_player_status(struct vram_inst* inst)
 {
-  byte damage = a_state->damage;
+  short int damage = a_state->damage;
   // TODO: move to setting damage.
+  
   if((damage&0b00001111)>=10)
   {
     damage+=6;
     a_state->damage=damage;
   }
-  inst->_1_lda_val = '0'+(damage>>4);
-  inst++;
-  inst->_1_lda_val = '0'+(damage&0b00001111);
-  inst++;
-  inst->_1_lda_val = '%';
+  
+  if(damage>=160)
+  {
+    inst->_1_lda_val = 'D';
+    inst++;
+    inst->_1_lda_val = 'E';
+    inst++;
+    inst->_1_lda_val = 'D';
+    inst++;
+  }
+  else
+  {
+    inst->_1_lda_val = '0'+(damage>>4);
+    inst++;
+    inst->_1_lda_val = '0'+(damage&0b00001111);
+    inst++;
+    inst->_1_lda_val = '%';
+  }
 }
 
 
@@ -1464,7 +1478,7 @@ void main(void) {
         byte x=icon_pos_x[i];
         oam_id = oam_meta_spr(x+(a_state->damage_vis_frames>>2), 190-(a_state->damage_vis_frames), oam_id, *a_icon);
         // Todo: enable health indicator after refactoring sprite rendering.
-        //oam_id = oam_meta_spr(x+3, 200, oam_id, char13lives_sprites[i]);
+        oam_id = oam_meta_spr(x+3, 200, oam_id, char13lives_sprites[i]);
         a_icon++;
         a_state++;
       }
@@ -1493,7 +1507,7 @@ void main(void) {
       #if NUM_ACTORS >3
       a_state++;
       //update_debug_info(3,vram_line+24);
-      //update_player_status(vram_line2+25);
+      update_player_status(vram_line2+25);
       #endif
     }
     
