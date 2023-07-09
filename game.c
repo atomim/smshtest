@@ -156,6 +156,7 @@ const unsigned char name[]={\
 // !fix failing jump and add asserts (day 4/5)
 // !fix fall through (day 5)
 // *fix perf of indexing spritess
+// *fix bug where green stops when yellow hangs
 
 DEF_METASPRITE_2x2_VARS(char1icon,0xd0);
 DEF_METASPRITE_2x2_VARS(char13lives,0xac);
@@ -249,6 +250,7 @@ struct state{
   byte double_jumps_left;
   bool on_edge;
   bool fall_through_triggered;
+  byte damage_vis_frames;
 };
 
 
@@ -290,7 +292,7 @@ struct platform{
   byte has_edge;
 };
 
-#define NUM_ACTORS 4
+#define NUM_ACTORS 3
 #define NUM_PLATFORMS 4
 
 byte actor_x[NUM_ACTORS];      // Position
@@ -426,9 +428,15 @@ void reset_level_and_bg()
 void update_player_status(struct vram_inst* inst)
 {
   byte damage = a_state->damage;
+  // TODO: move to setting damage.
+  if((damage&0b00001111)>=10)
+  {
+    damage+=6;
+    a_state->damage=damage;
+  }
   inst->_1_lda_val = '0'+(damage>>4);
   inst++;
-  inst->_1_lda_val = '0'+damage&0b11110000;
+  inst->_1_lda_val = '0'+(damage&0b00001111);
   inst++;
   inst->_1_lda_val = '%';
 }
@@ -490,14 +498,16 @@ void simulate_player(unsigned char num)
   signed char id_right=-1;
   signed char id_left=-1;
   
-  // todo: balance chances based on amount of ai's
+  
   unsigned char r128;
   unsigned char j;
 
-  
   Assert(num>NUM_ACTORS);
 
+  a_intent=&actor_intent[num];
   
+  // Balance chances based on amount of ai's
+  // Todo: convert to switch-case for a tiny bit better perf.
   if(num_ai==1)
   {
     r128 = r&0x7f;
@@ -556,73 +566,66 @@ void simulate_player(unsigned char num)
     cur_platform++;
   }
   {
-    char i;
-    // consume cpu to balance lower values to make ai cpu usage more predictable.
-    for(i=MIN(20,r128);i>0;--i)
-    {
-      ++i;
-      --i;
-    }
     switch(r128)
     {
       case 0:
         break;
       case 1: // Jump
-        actor_intent[num].jump = true;
-        actor_intent[num].crouch = false;
+        a_intent->jump = true;
+        a_intent->crouch = false;
         break;
       case 2:
       case 3: // Release Jump
-        actor_intent[num].jump = false;
+        a_intent->jump = false;
         break;
       case 4: // Stop
-        actor_intent[num].dir = DIR_NONE;
-        actor_intent[num].crouch = false;
+        a_intent->dir = DIR_NONE;
+        a_intent->crouch = false;
         break;
       case 5: // Left
-        actor_intent[num].dir = DIR_LEFT;
-        actor_intent[num].crouch = false;
+        a_intent->dir = DIR_LEFT;
+        a_intent->crouch = false;
         break;
       case 6: // Right
-        actor_intent[num].dir = DIR_RIGHT;
-        actor_intent[num].crouch = false;
+        a_intent->dir = DIR_RIGHT;
+        a_intent->crouch = false;
         break;
       case 7: // Fast fall / crouch;
-        actor_intent[num].fast_fall = true;
-        actor_intent[num].crouch = true;
+        a_intent->fast_fall = true;
+        a_intent->crouch = true;
         break;
       case 8:
       case 9: // crouch still
-        actor_intent[num].crouch = true;
-        actor_intent[num].dir = DIR_NONE;
+        a_intent->crouch = true;
+        a_intent->dir = DIR_NONE;
         break;
       case 10: // Cancel Fast fall / crouch
-        actor_intent[num].fast_fall = false;
-        actor_intent[num].crouch = false;
+        a_intent->fast_fall = false;
+        a_intent->crouch = false;
         break;
       case 11:
       case 12:
-        actor_intent[num].attack = true;
+        a_intent->attack = true;
         break;
       case 13:
       case 14:
       case 15:
       case 16:
-      case 17: // save when falling off
+      case 17: // save when falling off. cost: 3 scanlines.
         if(id_under==-1)
         {
           if(id_left!=-1)
           {
-            actor_intent[num].dir = DIR_LEFT;
+            a_intent->dir = DIR_LEFT;
           }
           if(id_right!=-1)
           {
-            actor_intent[num].dir = DIR_RIGHT;
+            a_intent->dir = DIR_RIGHT;
           }
-          actor_intent[num].fast_fall=false;
+          a_intent->fast_fall=false;
           if(actor_speedy[num]>0)
           {
-            actor_intent[num].jump=true;
+            a_intent->jump=true;
           }
         }
         break;
@@ -803,15 +806,15 @@ void main(void) {
       num_ai=NUM_ACTORS-1;
       if(num_ai>0)
       {
-      simulate_player(simulate_i+1);
-      simulate_i+=1;
-      #if NUM_ACTORS >1
-      if(simulate_i>NUM_ACTORS-2)
-      #endif
-      {
-        simulate_i=0;
-      }
-      }
+        simulate_player(simulate_i+1);
+        simulate_i+=1;
+        #if NUM_ACTORS >1
+        if(simulate_i>NUM_ACTORS-2)
+        #endif
+        {
+          simulate_i=0;
+        }
+        }
     }
     
     //
@@ -843,6 +846,10 @@ void main(void) {
       else
       {
         a_state->current_attack = ATTACK_NONE;
+      }
+      if(a_state->damage_vis_frames>0)
+      {
+      	a_state->damage_vis_frames--;
       }
       
       
@@ -894,7 +901,13 @@ void main(void) {
         if(a_intent->attack && cur_action != ACTION_DASHING_GROUND) // todo: switch to check animated/cancelable attack
         {
           *a_speed_x = 0;
-          a_state->current_attack = ATTACK_NORMAL_RIGHT;
+          if(a_state->facing_dir == DIR_RIGHT)
+          {
+            a_state->current_attack = ATTACK_NORMAL_RIGHT;
+          } else
+          {
+            a_state->current_attack = ATTACK_NORMAL_LEFT;
+          }
           a_state->current_attack_frames_left = a_params->attack_neutral_frames;
           cur_action = ACTION_STAND_BY_GROUND;
         }
@@ -1062,7 +1075,8 @@ void main(void) {
     a_speed_x=actor_speedx;
     a_speed_y=actor_speedy;
 
-    // Actor State and intent physics
+    // Precalc hitboxes of the frame
+    // todo:
     for (i=0; i<NUM_ACTORS; i++) 
     {
       if(i<NUM_ACTORS)
@@ -1074,6 +1088,8 @@ void main(void) {
         a_speed_y++;
       }
     }
+    
+    // Actor State and intent physics
     
     a_state=actor_state;
     a_intent=actor_intent;
@@ -1087,15 +1103,61 @@ void main(void) {
       bool on_ground=false;
       enum action_state cur_action=a_state->current_action;
       
+      
+              
       // Process attacks
-      
-      //for(j = 0; j<NUM_ACTORS;j++)
       {
-        
+        unsigned char k;
+        for(k = 0; k<NUM_ACTORS;k++)
+        {
+          struct state* o_state;
+          if(k==i)
+            continue;
+          o_state = &actor_state[k];
+          //struct intent* o_intent = &actor_intent[k];
+          if(o_state->current_attack != ATTACK_NONE)
+          {
+            // TODO: precalc hitboxes.
+            byte attack_y1;
+            byte attack_y2;
+            byte attack_x1;
+            byte attack_x2;
+            short int force_x;
+            attack_y1=actor_y[k];
+            attack_y2=attack_y1+6;
+            if(actor_y[j]<attack_y2
+              && actor_y[i]+17 > attack_y1
+              )
+            {
+              
+              if (o_state->current_attack == ATTACK_NORMAL_RIGHT)
+              {
+	        attack_x1=actor_x[k]+10;
+                attack_x2=actor_x[k]+18;
+                force_x=3;
+              }
+              else if (o_state->current_attack == ATTACK_NORMAL_LEFT)
+              {
+                attack_x1=actor_x[k]-2;
+                attack_x2=actor_x[k]+6;
+                force_x=-3;
+              }
+              if(actor_x[i]+12>attack_x1
+                 && actor_x[i]+4<attack_x2
+                )
+              {
+                actor_speedy[i]=-(50+(a_state->damage<<3));
+                actor_x[i]=(short int)actor_x[i]+force_x;
+                actor_speedx[i]=force_x<<2;
+                a_state->damage+=3;
+                a_state->damage_vis_frames+=3;
+              }
+            }
+          }
+        }
       }
-      
-    //}
     
+      
       // Actor Physics
       {
         short int actorxf;
@@ -1133,6 +1195,7 @@ void main(void) {
 
         actor_xf[i] = actorxf;
         actor_yf[i] = actoryf;
+        
 
         // Collisions and related calculation
 
@@ -1150,6 +1213,7 @@ void main(void) {
           actor_feet_y=actor_y[i]+17;
           skip_due_to_fall_through=((a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered) && cur_platform->can_fall_through);
           falling=actor_speedy[i] >= 0;
+          
           
           // Side collision and grab
           if(!on_platform && cur_platform->has_edge)
@@ -1355,7 +1419,7 @@ void main(void) {
           }
           else
           {
-            if(actor_intent[i].fast_fall) // Todo: use state instead of intent.
+            if(a_intent->fast_fall) // Todo: use state instead of intent.
             {
               actor_sprite[i] = char1fast_fall_sprites[sprite_var];
             }
@@ -1382,6 +1446,7 @@ void main(void) {
     
     // Update Sprites
     {
+      a_state=actor_state;
       a_sprite=actor_sprite;
       // start with OAMid/sprite 0
       oam_id = 0;
@@ -1397,9 +1462,11 @@ void main(void) {
       for (i=0; i<NUM_ACTORS; i++) 
       {
         byte x=icon_pos_x[i];
-        oam_id = oam_meta_spr(x, 190, oam_id, *a_icon);
-        oam_id = oam_meta_spr(x+3, 200, oam_id, char13lives_sprites[i]);
+        oam_id = oam_meta_spr(x+(a_state->damage_vis_frames>>2), 190-(a_state->damage_vis_frames), oam_id, *a_icon);
+        // Todo: enable health indicator after refactoring sprite rendering.
+        //oam_id = oam_meta_spr(x+3, 200, oam_id, char13lives_sprites[i]);
         a_icon++;
+        a_state++;
       }
       // hide rest of sprites
       // if we haven't wrapped oam_id around to 0
@@ -1414,13 +1481,13 @@ void main(void) {
       #if NUM_ACTORS >1
       a_state++;
       //update_debug_info(1,vram_line+8);
-      //update_player_status(vram_line2+11);
+      update_player_status(vram_line2+11);
       #endif
 
       #if NUM_ACTORS >2
       a_state++;
       //update_debug_info(2,vram_line+16);
-      //update_player_status(vram_line2+18);
+      update_player_status(vram_line2+18);
       #endif
 
       #if NUM_ACTORS >3
