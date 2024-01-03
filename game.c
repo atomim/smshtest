@@ -158,6 +158,8 @@ const unsigned char name[]={\
 // *fix perf of indexing spritess
 // *fix bug where green stops when yellow hangs
 
+
+
 DEF_METASPRITE_2x2_VARS(char1icon,0xd0);
 DEF_METASPRITE_2x2_VARS(char13lives,0xac);
 
@@ -318,6 +320,10 @@ short int* a_speed_x;
 short int* a_speed_y;
 void ** a_sprite;
 void ** a_icon;
+byte zp_x;
+byte zp_y;
+struct state* o_state;
+
 #pragma bss-name (pop)
 #pragma data-name(pop)
 
@@ -1117,17 +1123,18 @@ void main(void) {
       bool on_ground=false;
       enum action_state cur_action=a_state->current_action;
       
-      
+      o_state = actor_state;
               
-      // Process attacks
+      // Process attacks (from others)
       {
         unsigned char k;
         for(k = 0; k<NUM_ACTORS;k++)
         {
-          struct state* o_state;
           if(k==i)
+          {
+            o_state++;
             continue;
-          o_state = &actor_state[k];
+          }
           //struct intent* o_intent = &actor_intent[k];
           if(o_state->current_attack != ATTACK_NONE)
           {
@@ -1168,6 +1175,7 @@ void main(void) {
               }
             }
           }
+          o_state++;
         }
       }
     
@@ -1212,6 +1220,8 @@ void main(void) {
         
 
         // Collisions and related calculation
+        
+        cur_platform=platforms;
 
         on_ground = false;
         on_edge = false;
@@ -1222,7 +1232,6 @@ void main(void) {
           byte actor_feet_x;
           byte actor_feet_y;
           bool skip_due_to_fall_through;
-          cur_platform=&platforms[j];
           actor_feet_x=actor_x[i]+8;
           actor_feet_y=actor_y[i]+17;
           skip_due_to_fall_through=((a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered) && cur_platform->can_fall_through);
@@ -1325,7 +1334,10 @@ void main(void) {
             on_edge=true;
           }
           
+          cur_platform++;
+          
         }
+        //*/
         a_state->on_edge=on_edge;
 
       	if(on_ground)
@@ -1475,10 +1487,10 @@ void main(void) {
       a_icon=char1icon_sprites;
       for (i=0; i<NUM_ACTORS; i++) 
       {
-        byte x=icon_pos_x[i];
-        oam_id = oam_meta_spr(x+(a_state->damage_vis_frames>>2), 190-(a_state->damage_vis_frames), oam_id, *a_icon);
+        zp_x=icon_pos_x[i];
+        oam_id = oam_meta_spr(zp_x+(a_state->damage_vis_frames>>2), 190-(a_state->damage_vis_frames), oam_id, *a_icon);
         // Todo: enable health indicator after refactoring sprite rendering.
-        oam_id = oam_meta_spr(x+3, 200, oam_id, char13lives_sprites[i]);
+        oam_id = oam_meta_spr(zp_x+3, 200, oam_id, char13lives_sprites[i]);
         a_icon++;
         a_state++;
       }
