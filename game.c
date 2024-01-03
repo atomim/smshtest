@@ -322,6 +322,7 @@ void ** a_sprite;
 void ** a_icon;
 byte zp_x;
 byte zp_y;
+struct intent* intentlookup[NUM_ACTORS];
 struct state* o_state;
 
 #pragma bss-name (pop)
@@ -524,7 +525,7 @@ void simulate_player(unsigned char num)
 
   Assert(num>NUM_ACTORS);
 
-  a_intent=&actor_intent[num];
+  a_intent=intentlookup[num];
   
   // Balance chances based on amount of ai's
   // Todo: convert to switch-case for a tiny bit better perf.
@@ -561,7 +562,7 @@ void simulate_player(unsigned char num)
     bool isLeft = actor_x[num]+8>cur_platform->x1;
     bool isRight = actor_x[num]+8<cur_platform->x2;
 
-    if(isLeft&&isRight)
+    if(isLeft&isRight)
     {
       bool isUnder;
       isUnder=actor_y[num]+17>=cur_platform->y1;
@@ -570,6 +571,11 @@ void simulate_player(unsigned char num)
         id_under=j;
         //todo: make sure it is closest under
       }
+      else
+      {
+        __asm__("nop");
+        __asm__("nop");
+      }
     }else
     {
       if(isLeft)
@@ -577,11 +583,111 @@ void simulate_player(unsigned char num)
         id_left=j;
         //todo: make sure it is closest
       }
+      else
+      {
+        __asm__("nop");
+        __asm__("nop");
+      }
       if(isRight)
       {
         id_right=j;
         //todo: make sure it is closest
       }
+      else
+      {
+        __asm__("nop");
+        __asm__("nop");
+      }
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+      //__asm__("nop");
+      //__asm__("nop");
+      //__asm__("nop");
+     
+
     }
     cur_platform++;
   }
@@ -705,6 +811,13 @@ void main(void) {
   char pad_rising = 0;
   char pad_falling =0;
   bool demo_mode_on = true;
+  register char i;
+  
+  a_intent=actor_intent;
+  for(i =0;i<NUM_ACTORS;i++)
+  {
+     intentlookup[i]=a_intent;a_intent++;
+  }
 
   //
   // INIT
@@ -826,8 +939,8 @@ void main(void) {
       num_ai=NUM_ACTORS-1;
       if(num_ai>0)
       {
-        simulate_player(simulate_i+1);
         simulate_i+=1;
+        simulate_player(simulate_i);
         #if NUM_ACTORS >1
         if(simulate_i>NUM_ACTORS-2)
         #endif
@@ -1116,6 +1229,7 @@ void main(void) {
     a_params=actor_params;
     a_speed_x=actor_speedx;
     a_speed_y=actor_speedy;
+    a_sprite=actor_sprite;
 
     // Actor State and intent physics
     for (i=0; i<NUM_ACTORS; i++) 
@@ -1135,7 +1249,6 @@ void main(void) {
             o_state++;
             continue;
           }
-          //struct intent* o_intent = &actor_intent[k];
           if(o_state->current_attack != ATTACK_NONE)
           {
             // TODO: precalc hitboxes.
@@ -1235,7 +1348,7 @@ void main(void) {
           actor_feet_x=actor_x[i]+8;
           actor_feet_y=actor_y[i]+17;
           skip_due_to_fall_through=((a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered) && cur_platform->can_fall_through);
-          falling=actor_speedy[i] >= 0;
+          falling=*a_speed_y >= 0;
           
           
           // Side collision and grab
@@ -1281,7 +1394,7 @@ void main(void) {
                  && grab_box_x1<cur_platform->x1
                 )
               {
-                a_speed_x[i]=0;a_speed_y[i]=0;
+                *a_speed_x=0;*a_speed_y=0;
                 actor_y[i]=cur_platform->y1;
                 actor_x[i]=cur_platform->x1-11;
                 a_state->current_action = ACTION_HANGING_GROUND;
@@ -1292,7 +1405,7 @@ void main(void) {
                  && grab_box_x2>cur_platform->x2
                  && grab_box_x1<cur_platform->x2)
               {
-                a_speed_x[i]=0;a_speed_y[i]=0;
+                *a_speed_x=0;*a_speed_y=0;
                 actor_y[i]=cur_platform->y1;
                 actor_x[i]=cur_platform->x2-5;
                 a_state->current_action = ACTION_HANGING_GROUND;
@@ -1319,7 +1432,7 @@ void main(void) {
             else
             {
               actor_y[i] = cur_platform->y1-17;
-              actor_speedy[i] = 0;
+              *a_speed_y = 0;
               actor_yf[i] = 0;
               on_ground = true;
             }
@@ -1337,7 +1450,7 @@ void main(void) {
           cur_platform++;
           
         }
-        //*/
+        
         a_state->on_edge=on_edge;
 
       	if(on_ground)
@@ -1407,51 +1520,51 @@ void main(void) {
           {
             if(a_state->current_attack != ATTACK_NONE)
             {
-              actor_sprite[i] = char1neutral_sprites[sprite_var];
+              *a_sprite = char1neutral_sprites[sprite_var];
             }
             else if(cur_action==ACTION_RUNNING_GROUND)
             {
-              actor_sprite[i] = char1run_sprites[sprite_var];
+              *a_sprite = char1run_sprites[sprite_var];
             }
             else if(cur_action==ACTION_CROUCHING_GROUND)
             {
-              actor_sprite[i] = char1crouch_sprites[sprite_var];
+              *a_sprite = char1crouch_sprites[sprite_var];
             }
             else if(cur_action==ACTION_STAND_BY_GROUND 
                     || cur_action==ACTION_WALKING_GROUND)
             {
               if(a_state->on_edge)
               {
-                actor_sprite[i] = char1sway_sprites[sprite_var];
+                *a_sprite = char1sway_sprites[sprite_var];
               }
               else
               {
-                actor_sprite[i] = char1stand_sprites[sprite_var];
+                *a_sprite = char1stand_sprites[sprite_var];
               }
             }
             else if(cur_action==ACTION_HANGING_GROUND)
             {
-              actor_sprite[i] = char1ledge_sprites[sprite_var];
+              *a_sprite = char1ledge_sprites[sprite_var];
             }
             else if(cur_action==ACTION_DASHING_GROUND)
             {
-              actor_sprite[i] = char1dash_sprites[sprite_var];
+              *a_sprite = char1dash_sprites[sprite_var];
             }
             else
             {
               // Todo: handle jump crouch as part of animation instead of last case
-              actor_sprite[i] = char1crouch_sprites[sprite_var];
+              *a_sprite = char1crouch_sprites[sprite_var];
             }
           }
           else
           {
             if(a_intent->fast_fall) // Todo: use state instead of intent.
             {
-              actor_sprite[i] = char1fast_fall_sprites[sprite_var];
+              *a_sprite = char1fast_fall_sprites[sprite_var];
             }
             else
             {
-              actor_sprite[i] = char1jump_sprites[sprite_var];
+              *a_sprite = char1jump_sprites[sprite_var];
             }
           }
         }
@@ -1466,6 +1579,7 @@ void main(void) {
         a_params++;
         a_speed_x++;
         a_speed_y++;
+        a_sprite++;
       }
     }
     
