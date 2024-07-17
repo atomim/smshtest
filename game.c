@@ -509,6 +509,58 @@ void update_debug_info(byte player,struct vram_inst* inst)
   
 }
 
+#pragma warn (unused-param, push, off)
+#if 0
+#define log_state_update(a) ;
+#define log_start_physics(a) ;
+#define log_precalc_hitboxes(a) ;
+#define log_process_attacks(a) ;
+#define log_collision_calculation(a) ;
+#define log_state_updates_after_sim(a) ;
+#define log_sprite_selection(a) ;
+#define log_update_sprites(a) ;
+#else
+void log_state_update(byte dummy)
+{
+  return;
+}
+
+void log_precalc_hitboxes(byte dummy)
+{
+  return;
+}
+
+void log_start_physics(byte dummy)
+{
+  return;
+}
+
+void log_process_attacks(byte dummy)
+{
+  return;
+}
+
+void log_collision_calculation(byte dummy)
+{
+  return;
+}
+
+void log_state_updates_after_sim(byte dummy)
+{
+  return;
+}
+void log_sprite_selection(byte dummy)
+{
+  return;
+}
+
+void log_update_sprites(byte dummy)
+{
+  return;
+}
+#endif
+#pragma warn(unused-param,pop)
+
 char num_ai;
 
 void simulate_player(unsigned char num)
@@ -598,6 +650,7 @@ void simulate_player(unsigned char num)
         __asm__("nop");
         __asm__("nop");
       }
+      
       __asm__("nop");
       __asm__("nop");
       __asm__("nop");
@@ -962,11 +1015,12 @@ void main(void) {
     a_speed_y=actor_speedy;
 
     // Actor State and intent physics
-    for (i=0; i<NUM_ACTORS; i++) 
+    for (i=0; i<NUM_ACTORS; i++)  // 10 scanlines per actor
     {
       enum action_state cur_action;
       bool on_ground=false;
       byte action_frames=0;
+      log_state_update(0);
       
       cur_action=a_state->current_action;
       action_frames=a_state->current_action_frames;
@@ -1202,14 +1256,16 @@ void main(void) {
         a_speed_y++;
       }
     }
+    
+    
+    log_precalc_hitboxes(0);
+    // Precalc hitboxes of the frame
+    /*
     a_state=actor_state;
     a_intent=actor_intent;
     a_params=actor_params;
     a_speed_x=actor_speedx;
     a_speed_y=actor_speedy;
-
-    // Precalc hitboxes of the frame
-    // todo:
     for (i=0; i<NUM_ACTORS; i++) 
     {
       if(i<NUM_ACTORS)
@@ -1220,7 +1276,10 @@ void main(void) {
         a_speed_x++;
         a_speed_y++;
       }
+      // todo:
     }
+    */
+    log_precalc_hitboxes(0);
     
     // Actor State and intent physics
     
@@ -1234,16 +1293,20 @@ void main(void) {
     // Actor State and intent physics
     for (i=0; i<NUM_ACTORS; i++) 
     {
+      
       bool on_ground=false;
       enum action_state cur_action=a_state->current_action;
       
+      
+      
       o_state = actor_state;
               
-      // Process attacks (from others)
+      // Process attacks (from others): 3 scanlines
       {
         unsigned char k;
         for(k = 0; k<NUM_ACTORS;k++)
         {
+          log_process_attacks(0);
           if(k==i)
           {
             o_state++;
@@ -1292,13 +1355,17 @@ void main(void) {
         }
       }
     
-      
-      // Actor Physics
+      log_start_physics(0); // (5 scanlines before log_collision_calculation)
+      // Actor Physics: around 28 scanlines
       {
         short int actorxf;
         short int actoryf;
         bool on_edge;
-        bool action_on_ground=false;
+        bool falling;
+        bool on_platform;
+        byte actor_feet_x; 
+        byte actor_feet_y;
+        bool action_on_ground;
         byte speed_y_in_pixels=(*a_speed_y>>8);
 
 
@@ -1338,18 +1405,24 @@ void main(void) {
 
         on_ground = false;
         on_edge = false;
-        for(j=0;j<p_count;++j)
+        for(j=0;j<p_count;++j) // 4-8 scanlines per actor, heavy on air. 3*6=18. 
         {
-          bool falling=false;
-          bool on_platform=false;
-          byte actor_feet_x;
-          byte actor_feet_y;
           bool skip_due_to_fall_through;
-          actor_feet_x=actor_x[i]+8;
-          actor_feet_y=actor_y[i]+17;
-          skip_due_to_fall_through=((a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered) && cur_platform->can_fall_through);
-          falling=*a_speed_y >= 0;
           
+          log_collision_calculation(0);
+          
+          // Keep worst case code here to have more stable estimate of 
+          skip_due_to_fall_through=((a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered) && cur_platform->can_fall_through);
+          
+          falling=*a_speed_y >= 0; // may update for each platform
+          actor_feet_x=actor_x[i]+8; // may update for each platform
+          actor_feet_y=actor_y[i]+17; // may update for each platform
+          
+          on_platform=
+             actor_feet_y>=cur_platform->y1-speed_y_in_pixels
+             && actor_feet_y<=cur_platform->y2
+             && actor_feet_x>cur_platform->x1
+             && actor_feet_x<cur_platform->x2;
           
           // Side collision and grab
           if(!on_platform && cur_platform->has_edge)
@@ -1377,19 +1450,18 @@ void main(void) {
             
             // grab
 
-            grab_box_x1=actor_feet_x-8;
+            grab_box_x1=actor_feet_x-8; //Todo: precalculate? check close enough first?
             grab_box_x2=actor_feet_x+8;
             grab_box_y=actor_y[i];
-            //todo:take direction into account
-            //todo: collide with edge
+
             if(falling 
                && !a_intent->jump 
-               && !a_intent->fast_fall
-               && !a_intent->crouch
+               && !a_intent->fast_fall 
+               && !a_intent->crouch // drop
                && grab_box_y>=cur_platform->y1
                && grab_box_y<=cur_platform->y2)
             {
-              if(a_intent->dir!=DIR_LEFT
+              if(a_intent->dir!=DIR_LEFT // right+neutral dir
                  && grab_box_x2>cur_platform->x1
                  && grab_box_x1<cur_platform->x1
                 )
@@ -1401,7 +1473,7 @@ void main(void) {
                 a_state->facing_dir = DIR_RIGHT;
                 on_ground = true;
               }
-              else if(a_intent->dir!=DIR_RIGHT
+              else if(a_intent->dir!=DIR_RIGHT // left + neutral dir
                  && grab_box_x2>cur_platform->x2
                  && grab_box_x1<cur_platform->x2)
               {
@@ -1416,11 +1488,6 @@ void main(void) {
             
           }
           // normal collision
-          on_platform=
-             actor_feet_y>=cur_platform->y1-speed_y_in_pixels
-             && actor_feet_y<=cur_platform->y2
-             && actor_feet_x>cur_platform->x1
-             && actor_feet_x<cur_platform->x2;
           if(falling
              && on_platform
              )
@@ -1438,10 +1505,10 @@ void main(void) {
             }
           }
           // todo: split condition to improve perf
-          // on_edge
+          // on_edge state update based on facing dir
           if(on_platform
-             && ((actor_feet_x<cur_platform->x1+6 && a_state->facing_dir == DIR_LEFT) 
-                 || (actor_feet_x>cur_platform->x2-6&& a_state->facing_dir == DIR_RIGHT))
+             && ((a_state->facing_dir == DIR_LEFT && actor_feet_x<cur_platform->x1+6) 
+                 || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>cur_platform->x2-6))
              )
           {
             on_edge=true;
@@ -1450,6 +1517,8 @@ void main(void) {
           cur_platform++;
           
         }
+        
+        log_state_updates_after_sim(0);
         
         a_state->on_edge=on_edge;
 
@@ -1501,7 +1570,8 @@ void main(void) {
         {
           a_state->moving_dir = DIR_NONE;
         }
-
+        
+	log_sprite_selection(0);
         // Select sprite
         // TODO: deduplicate
         // todo: improve facing difection.
@@ -1582,8 +1652,7 @@ void main(void) {
         a_sprite++;
       }
     }
-    
-    
+    log_update_sprites(0);
     // Update Sprites
     {
       a_state=actor_state;
