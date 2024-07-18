@@ -1333,10 +1333,12 @@ void main(void) {
       // Process attacks (from others): 3 scanlines
       {
         unsigned char k;
-        for(k = 0; k<NUM_ACTORS;k++)
+        for(k = 0; k<NUM_ACTORS;k++) 
         {
+          // k is attacking player id
+          // i is current player
           log_process_attacks(0);
-          if(k==i)
+          if(k==i) // skip attacking self
           {
             o_state++;
             continue;
@@ -1344,15 +1346,17 @@ void main(void) {
           if(o_state->current_attack != ATTACK_NONE)
           {
             // TODO: precalc hitboxes.
-            byte attack_y1;
-            byte attack_y2;
-            byte attack_x1;
-            byte attack_x2;
+            byte attack_y1; //upper
+            byte attack_y2; //lower
+            byte attack_x1; //left
+            byte attack_x2; //right
             short int force_x;
+            // Attack box y
             attack_y1=actor_y[k];
             attack_y2=attack_y1+6;
-            if(actor_y[j]<attack_y2
-              && actor_y[i]+17 > attack_y1
+            // Hit box y comparison
+            if(actor_y[i]<attack_y2 // attack bottom lower than head
+              && actor_y[i]+17 > attack_y1 // feet lower than attack top
               )
             {
               
