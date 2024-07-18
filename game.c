@@ -1,5 +1,5 @@
 /*
-Setting the attribute table, which controls palette selection
+Setting th e attribute table, which controls palette selection
 for the nametable. We copy it from an array in ROM to video RAM.
 */
 #include "neslib.h"
@@ -324,7 +324,8 @@ byte zp_x;
 byte zp_y;
 struct intent* intentlookup[NUM_ACTORS];
 struct state* o_state;
-
+short int tmp_speed_x_value;
+short int tmp_target_speed_x;
 #pragma bss-name (pop)
 #pragma data-name(pop)
 
@@ -519,6 +520,7 @@ void update_debug_info(byte player,struct vram_inst* inst)
 #define log_state_updates_after_sim(a) ;
 #define log_sprite_selection(a) ;
 #define log_update_sprites(a) ;
+#define log_end_physics(a) ;
 #else
 void log_state_update(byte dummy)
 {
@@ -558,6 +560,13 @@ void log_update_sprites(byte dummy)
 {
   return;
 }
+
+void log_end_physics(byte dummy)
+{
+  return;
+}
+
+
 #endif
 #pragma warn(unused-param,pop)
 
@@ -651,6 +660,7 @@ void simulate_player(unsigned char num)
         __asm__("nop");
       }
       
+      // balance branches 
       __asm__("nop");
       __asm__("nop");
       __asm__("nop");
@@ -1026,6 +1036,10 @@ void main(void) {
       action_frames=a_state->current_action_frames;
       on_ground=ON_GROUND(cur_action);
       
+      //Speedx value
+      tmp_speed_x_value=*a_speed_x;
+      tmp_target_speed_x = tmp_speed_x_value;
+      
       if(a_state->current_attack_frames_left>0)
       {
       	a_state->current_attack_frames_left--;
@@ -1070,11 +1084,11 @@ void main(void) {
         {
           if(a_intent->dir == DIR_LEFT)
           {
-            *a_speed_x=-a_params->run_speed;
+            tmp_target_speed_x=-a_params->run_speed;
           }
           else if(a_intent->dir == DIR_RIGHT)
           {
-            *a_speed_x=a_params->run_speed;
+            tmp_target_speed_x=a_params->run_speed; 
           }
           // todo:skidding
           // todo:dashing
@@ -1085,9 +1099,10 @@ void main(void) {
         // Reset fast fall intent on ground. Todo:move after input.
         a_intent->fast_fall=false;
         
+        // Initiate attack from any non-animated state.
+        // Set action to stand by ground.
         if(a_intent->attack && cur_action != ACTION_DASHING_GROUND) // todo: switch to check animated/cancelable attack
         {
-          *a_speed_x = 0;
           if(a_state->facing_dir == DIR_RIGHT)
           {
             a_state->current_attack = ATTACK_NORMAL_RIGHT;
@@ -1099,16 +1114,19 @@ void main(void) {
           cur_action = ACTION_STAND_BY_GROUND;
         }
         
+        
         if(cur_action==ACTION_STAND_BY_GROUND)
         {
+          // Transition stabdby -> walk
           if(a_intent->dir != DIR_NONE)
           {
             cur_action=ACTION_WALKING_GROUND;
             action_frames=0;
           }
         }
-        if(cur_action==ACTION_WALKING_GROUND)
+        if(cur_action==ACTION_WALKING_GROUND) // depends on above
         {
+          // Count and apply frames to run
           if(action_frames>a_params->frames_to_run)
           {
             cur_action=ACTION_RUNNING_GROUND;
@@ -1117,22 +1135,24 @@ void main(void) {
           else
           {
             
-            if(a_state->direction_changed || *a_speed_x==0)
+            if(a_state->direction_changed || tmp_speed_x_value==0)
             {
               action_frames=0;
             }
             if(a_intent->dir == DIR_LEFT)
             {
-              *a_speed_x=-a_params->walk_speed;
+              tmp_target_speed_x=-a_params->walk_speed; // TODO: gradual change
             }
             else if(a_intent->dir == DIR_RIGHT)
             {
-              *a_speed_x=a_params->walk_speed;
+              tmp_target_speed_x=a_params->walk_speed;
             }
           }
         }
-        if(cur_action==ACTION_RUNNING_GROUND)
+        if(cur_action==ACTION_RUNNING_GROUND) // depends on above
         {
+          
+          // change action to dash if attacking when running
           if(a_intent->attack)
           {
             cur_action=ACTION_DASHING_GROUND;
@@ -1140,17 +1160,19 @@ void main(void) {
           }
           else if(a_intent->dir == DIR_LEFT)
           {
-            *a_speed_x=-a_params->run_speed;
+            tmp_target_speed_x=-a_params->run_speed; // TODO: gradual change
           }
           else if(a_intent->dir == DIR_RIGHT)
           {
-            *a_speed_x=a_params->run_speed;
+            tmp_target_speed_x=a_params->run_speed;
           }
           else
           {
+            // transition directly to stand by if not dashing or intent dir.
             // todo:skidding
             // todo:dashing
             cur_action=ACTION_STAND_BY_GROUND;
+            tmp_target_speed_x=0;
             action_frames=0;
           }
         }
@@ -1158,11 +1180,13 @@ void main(void) {
         {
           if(a_state->moving_dir == DIR_LEFT)
           {
-            *a_speed_x=-a_params->dash_speed;
+            tmp_target_speed_x=-a_params->dash_speed;
+            tmp_speed_x_value=tmp_target_speed_x; // Skip interpolation
           }
           else if(a_state->moving_dir == DIR_RIGHT)
           {
-            *a_speed_x=a_params->dash_speed;
+            tmp_target_speed_x=a_params->dash_speed;
+            tmp_speed_x_value=tmp_target_speed_x; // Skip interpolation
           }
           
           if(action_frames>a_params->dash_frames)
@@ -1179,24 +1203,22 @@ void main(void) {
             }
             action_frames=0;
           }
+        } 
+        else
+        {
+          if(a_intent->crouch)
+          {
+            cur_action=ACTION_CROUCHING_GROUND;
+            action_frames=0;
+          }
         }
           
-        // Todo:limit start states for crouching. Move inside above ifs.
-        if(a_intent->crouch 
-           && cur_action!=ACTION_CROUCHING_GROUND)
-        {
-          cur_action=ACTION_CROUCHING_GROUND;
-          action_frames=0;
-        }
         if(cur_action==ACTION_CROUCHING_GROUND
           && a_intent->crouch!=true)
         {
           cur_action=ACTION_STAND_BY_GROUND;
           action_frames=0;
         }
-        // Always reset double jump frames on ground.
-        // todo: move to state transitions off from ground.
-        a_state->double_jumps_left=1;
           
         if(a_intent->jump)
         {
@@ -1212,6 +1234,7 @@ void main(void) {
             *a_speed_y = -a_params->jump_force;
             a_intent->jump = false;
             cur_action = ACTION_STAND_BY_AIR;
+            a_state->double_jumps_left=1;
             action_frames=0;
           }
         }
@@ -1221,27 +1244,33 @@ void main(void) {
           *a_speed_y = -a_params->short_hop_force;
           a_intent->jump = false;
           cur_action = ACTION_STAND_BY_AIR;
+          a_state->double_jumps_left=1;
           action_frames=0;
         }
         // Note: state might not be on ground anymore.
-      }
+      } // both air and ground behavior covered.
       
       // Inertia when slowing down
       // TODO: make state specific.
       // TODO: Implement target speed instead of only targeting to 0
       if(a_intent->dir == DIR_NONE)
       {
-        if(*a_speed_x>0)
-        {
-     	  *a_speed_x= *a_speed_x-20;//*a_speed_x*4/5;
-          *a_speed_x= MAX(0,*a_speed_x);
-        }
-        else if(*a_speed_x<0)
-        {
-          *a_speed_x= *a_speed_x+20;
-          *a_speed_x= MIN(0,*a_speed_x);
-        }
+        tmp_target_speed_x = 0;
       }
+      
+      // Interpolate toward target speed.
+      if(tmp_speed_x_value>tmp_target_speed_x)
+      {
+        tmp_speed_x_value= tmp_speed_x_value-20;
+        tmp_speed_x_value= MAX(tmp_target_speed_x,tmp_speed_x_value);
+      }
+      else if(tmp_speed_x_value<tmp_target_speed_x)
+      {
+        tmp_speed_x_value= tmp_speed_x_value+20;
+        tmp_speed_x_value= MIN(tmp_target_speed_x,tmp_speed_x_value);
+      }
+      *a_speed_x=tmp_speed_x_value;
+      
       a_intent->attack = false;
       a_state->current_action=cur_action;
       ++action_frames;
@@ -1331,21 +1360,22 @@ void main(void) {
               {
 	        attack_x1=actor_x[k]+10;
                 attack_x2=actor_x[k]+18;
-                force_x=3;
+                force_x=40+a_state->damage;
               }
               else if (o_state->current_attack == ATTACK_NORMAL_LEFT)
               {
                 attack_x1=actor_x[k]-2;
                 attack_x2=actor_x[k]+6;
-                force_x=-3;
+                force_x=-40-a_state->damage;
               }
+              
               if(actor_x[i]+12>attack_x1
                  && actor_x[i]+4<attack_x2
                 )
               {
-                actor_speedy[i]=-(50+(a_state->damage<<3));
-                actor_x[i]=(short int)actor_x[i]+force_x;
-                actor_speedx[i]=force_x<<2;
+                actor_speedy[i]=-(50+(a_state->damage<<2));
+                //actor_x[i]=(short int)actor_x[i];
+                actor_speedx[i]+=force_x;
                 a_state->damage+=3;
                 a_state->damage_vis_frames+=3;
               }
@@ -1355,8 +1385,8 @@ void main(void) {
         }
       }
     
-      log_start_physics(0); // (5 scanlines before log_collision_calculation)
-      // Actor Physics: around 28 scanlines
+      log_start_physics(0); // (3 scanlines before log_collision_calculation)
+      // Actor Physics: around 25 scanlines
       {
         short int actorxf;
         short int actoryf;
@@ -1365,8 +1395,8 @@ void main(void) {
         bool on_platform;
         byte actor_feet_x; 
         byte actor_feet_y;
+        byte speed_y_in_pixels;
         bool action_on_ground;
-        byte speed_y_in_pixels=(*a_speed_y>>8);
 
 
         actorxf = actor_xf[i]+*a_speed_x;
@@ -1405,19 +1435,17 @@ void main(void) {
 
         on_ground = false;
         on_edge = false;
-        for(j=0;j<p_count;++j) // 4-8 scanlines per actor, heavy on air. 3*6=18. 
+        for(j=0;j<p_count;++j) // heavy on air. 2,5 scanlines min, 5.5 max?
         {
           bool skip_due_to_fall_through;
           
           log_collision_calculation(0);
-          
-          // Keep worst case code here to have more stable estimate of 
-          skip_due_to_fall_through=((a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered) && cur_platform->can_fall_through);
-          
+                    
           falling=*a_speed_y >= 0; // may update for each platform
           actor_feet_x=actor_x[i]+8; // may update for each platform
           actor_feet_y=actor_y[i]+17; // may update for each platform
           
+          speed_y_in_pixels=(*a_speed_y>>8);
           on_platform=
              actor_feet_y>=cur_platform->y1-speed_y_in_pixels
              && actor_feet_y<=cur_platform->y2
@@ -1425,93 +1453,97 @@ void main(void) {
              && actor_feet_x<cur_platform->x2;
           
           // Side collision and grab
-          if(!on_platform && cur_platform->has_edge)
+          if(!on_platform)
           {
-            byte grab_box_x1;
-            byte grab_box_x2;
-            byte grab_box_y;
-            
-            // collision to edge
-            if(actor_y[i]<cur_platform->y2 
-               && actor_feet_y>cur_platform->y1
-              )
+            if(cur_platform->has_edge)
             {
-              if(actor_feet_x>cur_platform->x1
-                && actor_feet_x<cur_platform->x1+8)
-              {
-              	actor_x[i]=cur_platform->x1-8;
-              } 
-              else if (actor_feet_x<cur_platform->x2
-                       && actor_feet_x>cur_platform->x2-8)
-              {
-                actor_x[i]=cur_platform->x2-8;
-              }
-            }
-            
-            // grab
+              byte grab_box_x1;
+              byte grab_box_x2;
+              byte grab_box_y;
 
-            grab_box_x1=actor_feet_x-8; //Todo: precalculate? check close enough first?
-            grab_box_x2=actor_feet_x+8;
-            grab_box_y=actor_y[i];
-
-            if(falling 
-               && !a_intent->jump 
-               && !a_intent->fast_fall 
-               && !a_intent->crouch // drop
-               && grab_box_y>=cur_platform->y1
-               && grab_box_y<=cur_platform->y2)
-            {
-              if(a_intent->dir!=DIR_LEFT // right+neutral dir
-                 && grab_box_x2>cur_platform->x1
-                 && grab_box_x1<cur_platform->x1
+              // collision to edge
+              if(actor_y[i]<cur_platform->y2 
+                 && actor_feet_y>cur_platform->y1
                 )
               {
-                *a_speed_x=0;*a_speed_y=0;
-                actor_y[i]=cur_platform->y1;
-                actor_x[i]=cur_platform->x1-11;
-                a_state->current_action = ACTION_HANGING_GROUND;
-                a_state->facing_dir = DIR_RIGHT;
-                on_ground = true;
+                if(actor_feet_x>cur_platform->x1
+                  && actor_feet_x<cur_platform->x1+8)
+                {
+                  actor_x[i]=cur_platform->x1-8;
+                } 
+                else if (actor_feet_x<cur_platform->x2
+                         && actor_feet_x>cur_platform->x2-8)
+                {
+                  actor_x[i]=cur_platform->x2-8;
+                }
               }
-              else if(a_intent->dir!=DIR_RIGHT // left + neutral dir
-                 && grab_box_x2>cur_platform->x2
-                 && grab_box_x1<cur_platform->x2)
+
+              // grab
+
+              grab_box_x1=actor_feet_x-8; //Todo: precalculate? check close enough first?
+              grab_box_x2=actor_feet_x+8;
+              grab_box_y=actor_y[i];
+
+              if(falling 
+                 && grab_box_y>=cur_platform->y1
+                 && grab_box_y<=cur_platform->y2
+                 && !a_intent->jump 
+                 && !a_intent->fast_fall 
+                 && !a_intent->crouch // drop
+                 )
               {
-                *a_speed_x=0;*a_speed_y=0;
-                actor_y[i]=cur_platform->y1;
-                actor_x[i]=cur_platform->x2-5;
-                a_state->current_action = ACTION_HANGING_GROUND;
-                a_state->facing_dir = DIR_LEFT;
+                if(a_intent->dir!=DIR_LEFT // right+neutral dir
+                   && grab_box_x2>cur_platform->x1
+                   && grab_box_x1<cur_platform->x1
+                  )
+                {
+                  *a_speed_x=0;*a_speed_y=0;
+                  actor_y[i]=cur_platform->y1;
+                  actor_x[i]=cur_platform->x1-11;
+                  a_state->current_action = ACTION_HANGING_GROUND;
+                  a_state->facing_dir = DIR_RIGHT;
+                  on_ground = true;
+                }
+                else if(a_intent->dir!=DIR_RIGHT // left + neutral dir
+                   && grab_box_x1<cur_platform->x2
+                   && grab_box_x2>cur_platform->x2)
+                {
+                  *a_speed_x=0;*a_speed_y=0;
+                  actor_y[i]=cur_platform->y1;
+                  actor_x[i]=cur_platform->x2-5;
+                  a_state->current_action = ACTION_HANGING_GROUND;
+                  a_state->facing_dir = DIR_LEFT;
+                  on_ground = true;
+                }
+              }
+            }
+          }
+          else // on_platform = true
+          {
+            // normal collision
+            if(falling)
+            {
+              skip_due_to_fall_through=(cur_platform->can_fall_through && (a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered));
+              if(skip_due_to_fall_through)
+              {
+                a_state->fall_through_triggered = true;
+              }
+              else
+              {
+                actor_y[i] = cur_platform->y1-17;
+                *a_speed_y = 0;
+                actor_yf[i] = 0;
                 on_ground = true;
               }
             }
-            
-          }
-          // normal collision
-          if(falling
-             && on_platform
-             )
-          {
-            if(skip_due_to_fall_through)
+            // todo: split condition to improve perf
+            // on_edge state update based on facing dir
+            if(((a_state->facing_dir == DIR_LEFT && actor_feet_x<cur_platform->x1+6) 
+                || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>cur_platform->x2-6))
+               )
             {
-              a_state->fall_through_triggered = true;
+              on_edge=true;
             }
-            else
-            {
-              actor_y[i] = cur_platform->y1-17;
-              *a_speed_y = 0;
-              actor_yf[i] = 0;
-              on_ground = true;
-            }
-          }
-          // todo: split condition to improve perf
-          // on_edge state update based on facing dir
-          if(on_platform
-             && ((a_state->facing_dir == DIR_LEFT && actor_feet_x<cur_platform->x1+6) 
-                 || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>cur_platform->x2-6))
-             )
-          {
-            on_edge=true;
           }
           
           cur_platform++;
@@ -1533,6 +1565,7 @@ void main(void) {
         { // fall off edge
           a_state->current_action = ACTION_STAND_BY_AIR;
           a_state->current_action_frames=0;
+          a_state->double_jumps_left=1;
           action_on_ground=false;
         }
         else if(on_ground && !action_on_ground)
@@ -1651,6 +1684,7 @@ void main(void) {
         a_speed_y++;
         a_sprite++;
       }
+      log_end_physics(0);
     }
     log_update_sprites(0);
     // Update Sprites
