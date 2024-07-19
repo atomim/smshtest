@@ -249,6 +249,7 @@ enum action_state
   ACTION_TURNING_AROUND_GROUND=8, // todo
   ACTION_STOPPING_GROUND=9, // todo
   ACTION_FAST_FALLING_AIR=11, 
+  ACTION_SPAWNING=11,
 };
 
 unsigned char action_state_to_char[14] = {'S','A','c','C','H','W','R','D','T','s','F'};
@@ -1101,238 +1102,251 @@ void main(void) {
       actor_prev_x[i]=actor_x[i];
       actor_prev_y[i]=actor_y[i];
       
-      cur_action=a_state->current_action;
-      action_frames=a_state->current_action_frames;
-      on_ground=ON_GROUND(cur_action);
-      
-      //Speedx value
-      tmp_speed_x_value=*a_speed_x;
-      tmp_target_speed_x = tmp_speed_x_value;
-      
-      if(a_state->current_attack_frames_left>0)
+      if(a_state->current_action == ACTION_SPAWNING)
       {
-      	a_state->current_attack_frames_left--;
-      }
-      else
-      {
-        a_state->current_attack = ATTACK_NONE;
-      }
-      if(a_state->damage_vis_frames>0)
-      {
-      	a_state->damage_vis_frames--;
-      }
-      
-      
-      if (!on_ground) // on air
-      {
-        // Reset crouch intent on air.
-        a_intent->crouch = false;
-        // Fall speed
-      	*a_speed_y +=a_params->fall_force; 
-        
-        if(a_intent->fast_fall && *a_speed_y>0)
+        a_state->current_action_frames--;
+        if((a_state->current_action_frames < 60
+            && (a_intent->fast_fall || a_intent->jump || a_intent->dir!=DIR_NONE)
+           )||a_state->current_action_frames == 0)
         {
-          *a_speed_y = a_params->fast_fall;
+          a_state->current_action = ACTION_STAND_BY_AIR;
+          a_state->current_action_frames=0;
+        }
+      } else
+      {
+
+        cur_action=a_state->current_action;
+        action_frames=a_state->current_action_frames;
+        on_ground=ON_GROUND(cur_action);
+
+        //Speedx value
+        tmp_speed_x_value=*a_speed_x;
+        tmp_target_speed_x = tmp_speed_x_value;
+
+        if(a_state->current_attack_frames_left>0)
+        {
+          a_state->current_attack_frames_left--;
         }
         else
         {
-          *a_speed_y = MIN(*a_speed_y,a_params->fall_limit);
+          a_state->current_attack = ATTACK_NONE;
         }
-        
-        // Air attack
-        if(a_intent->attack) // todo: switch to check animated/cancelable attack
+        if(a_state->damage_vis_frames>0)
         {
-          if(a_state->facing_dir == DIR_RIGHT)
-          {
-            a_state->current_attack = ATTACK_AIR_NEUTRAL_RIGHT;
-          } else
-          {
-            a_state->current_attack = ATTACK_AIR_NEUTRAL_LEFT;
-          }
-          a_state->current_attack_frames_left = a_params->attack_air_neutral_frames;
-          cur_action = ACTION_STAND_BY_AIR;
+          a_state->damage_vis_frames--;
         }
-        
-        // jump
-        if(a_intent->jump)
+
+
+        if (!on_ground) // on air
         {
-          if(a_state->double_jumps_left>0)
+          // Reset crouch intent on air.
+          a_intent->crouch = false;
+          // Fall speed
+          *a_speed_y +=a_params->fall_force; 
+
+          if(a_intent->fast_fall && *a_speed_y>0)
           {
-            *a_speed_y = -a_params->jump_force; 
-            a_state->double_jumps_left-=1;
-          }
-          a_intent->jump = false;
-        }
-        
-        if(cur_action==ACTION_STAND_BY_AIR)
-        {
-          if(a_intent->dir == DIR_LEFT)
-          {
-            tmp_target_speed_x=-a_params->run_speed;
-          }
-          else if(a_intent->dir == DIR_RIGHT)
-          {
-            tmp_target_speed_x=a_params->run_speed; 
-          }
-          // todo:skidding
-          // todo:dashing
-        }
-      }
-      else // on ground
-      {
-        // Reset fast fall intent on ground. Todo:move after input.
-        a_intent->fast_fall=false;
-        
-        // Initiate attack from any non-animated state.
-        // Set action to stand by ground.
-        if(a_intent->attack && cur_action != ACTION_DASHING_GROUND) // todo: switch to check animated/cancelable attack
-        {
-          if(a_state->facing_dir == DIR_RIGHT)
-          {
-            a_state->current_attack = ATTACK_NORMAL_RIGHT;
-          } else
-          {
-            a_state->current_attack = ATTACK_NORMAL_LEFT;
-          }
-          a_state->current_attack_frames_left = a_params->attack_neutral_frames;
-          cur_action = ACTION_STAND_BY_GROUND;
-        }
-        
-        
-        if(cur_action==ACTION_STAND_BY_GROUND)
-        {
-          // Transition stabdby -> walk
-          if(a_intent->dir != DIR_NONE)
-          {
-            cur_action=ACTION_WALKING_GROUND;
-            action_frames=0;
-          }
-        }
-        if(cur_action==ACTION_WALKING_GROUND) // depends on above
-        {
-          // Count and apply frames to run
-          if(action_frames>a_params->frames_to_run)
-          {
-            cur_action=ACTION_RUNNING_GROUND;
-            action_frames=0;
+            *a_speed_y = a_params->fast_fall;
           }
           else
           {
-            
-            if(a_state->direction_changed || tmp_speed_x_value==0)
+            *a_speed_y = MIN(*a_speed_y,a_params->fall_limit);
+          }
+
+          // Air attack
+          if(a_intent->attack) // todo: switch to check animated/cancelable attack
+          {
+            if(a_state->facing_dir == DIR_RIGHT)
             {
-              action_frames=0;
+              a_state->current_attack = ATTACK_AIR_NEUTRAL_RIGHT;
+            } else
+            {
+              a_state->current_attack = ATTACK_AIR_NEUTRAL_LEFT;
             }
+            a_state->current_attack_frames_left = a_params->attack_air_neutral_frames;
+            cur_action = ACTION_STAND_BY_AIR;
+          }
+
+          // jump
+          if(a_intent->jump)
+          {
+            if(a_state->double_jumps_left>0)
+            {
+              *a_speed_y = -a_params->jump_force; 
+              a_state->double_jumps_left-=1;
+            }
+            a_intent->jump = false;
+          }
+
+          if(cur_action==ACTION_STAND_BY_AIR)
+          {
             if(a_intent->dir == DIR_LEFT)
             {
-              tmp_target_speed_x=-a_params->walk_speed; // TODO: gradual change
+              tmp_target_speed_x=-a_params->run_speed;
             }
             else if(a_intent->dir == DIR_RIGHT)
             {
-              tmp_target_speed_x=a_params->walk_speed;
+              tmp_target_speed_x=a_params->run_speed; 
+            }
+            // todo:skidding
+            // todo:dashing
+          }
+        }
+        else // on ground
+        {
+          // Reset fast fall intent on ground. Todo:move after input.
+          a_intent->fast_fall=false;
+
+          // Initiate attack from any non-animated state.
+          // Set action to stand by ground.
+          if(a_intent->attack && cur_action != ACTION_DASHING_GROUND) // todo: switch to check animated/cancelable attack
+          {
+            if(a_state->facing_dir == DIR_RIGHT)
+            {
+              a_state->current_attack = ATTACK_NORMAL_RIGHT;
+            } else
+            {
+              a_state->current_attack = ATTACK_NORMAL_LEFT;
+            }
+            a_state->current_attack_frames_left = a_params->attack_neutral_frames;
+            cur_action = ACTION_STAND_BY_GROUND;
+          }
+
+
+          if(cur_action==ACTION_STAND_BY_GROUND)
+          {
+            // Transition stabdby -> walk
+            if(a_intent->dir != DIR_NONE)
+            {
+              cur_action=ACTION_WALKING_GROUND;
+              action_frames=0;
             }
           }
-        }
-        if(cur_action==ACTION_RUNNING_GROUND) // depends on above
-        {
-          
-          // change action to dash if attacking when running
-          if(a_intent->attack)
+          if(cur_action==ACTION_WALKING_GROUND) // depends on above
           {
-            cur_action=ACTION_DASHING_GROUND;
-            action_frames=0;
-          }
-          else if(a_intent->dir == DIR_LEFT)
-          {
-            tmp_target_speed_x=-a_params->run_speed; // TODO: gradual change
-          }
-          else if(a_intent->dir == DIR_RIGHT)
-          {
-            tmp_target_speed_x=a_params->run_speed;
-          }
-          else
-          {
-            // transition directly to stand by if not dashing or intent dir.
-            // todo:skidding
-            // todo:dashing
-            cur_action=ACTION_STAND_BY_GROUND;
-            tmp_target_speed_x=0;
-            action_frames=0;
-          }
-        }
-        if(cur_action==ACTION_DASHING_GROUND)
-        {
-          if(a_state->moving_dir == DIR_LEFT)
-          {
-            tmp_target_speed_x=-a_params->dash_speed;
-            tmp_speed_x_value=tmp_target_speed_x; // Skip interpolation
-          }
-          else if(a_state->moving_dir == DIR_RIGHT)
-          {
-            tmp_target_speed_x=a_params->dash_speed;
-            tmp_speed_x_value=tmp_target_speed_x; // Skip interpolation
-          }
-          
-          if(action_frames>a_params->dash_frames)
-          {
-            // todo:skidding
-            // todo:dashing
-            if(a_intent->dir == a_state->moving_dir)
+            // Count and apply frames to run
+            if(action_frames>a_params->frames_to_run)
             {
               cur_action=ACTION_RUNNING_GROUND;
+              action_frames=0;
             }
             else
             {
-              cur_action=ACTION_STAND_BY_GROUND;
+
+              if(a_state->direction_changed || tmp_speed_x_value==0)
+              {
+                action_frames=0;
+              }
+              if(a_intent->dir == DIR_LEFT)
+              {
+                tmp_target_speed_x=-a_params->walk_speed; // TODO: gradual change
+              }
+              else if(a_intent->dir == DIR_RIGHT)
+              {
+                tmp_target_speed_x=a_params->walk_speed;
+              }
             }
+          }
+          if(cur_action==ACTION_RUNNING_GROUND) // depends on above
+          {
+
+            // change action to dash if attacking when running
+            if(a_intent->attack)
+            {
+              cur_action=ACTION_DASHING_GROUND;
+              action_frames=0;
+            }
+            else if(a_intent->dir == DIR_LEFT)
+            {
+              tmp_target_speed_x=-a_params->run_speed; // TODO: gradual change
+            }
+            else if(a_intent->dir == DIR_RIGHT)
+            {
+              tmp_target_speed_x=a_params->run_speed;
+            }
+            else
+            {
+              // transition directly to stand by if not dashing or intent dir.
+              // todo:skidding
+              // todo:dashing
+              cur_action=ACTION_STAND_BY_GROUND;
+              tmp_target_speed_x=0;
+              action_frames=0;
+            }
+          }
+          if(cur_action==ACTION_DASHING_GROUND)
+          {
+            if(a_state->moving_dir == DIR_LEFT)
+            {
+              tmp_target_speed_x=-a_params->dash_speed;
+              tmp_speed_x_value=tmp_target_speed_x; // Skip interpolation
+            }
+            else if(a_state->moving_dir == DIR_RIGHT)
+            {
+              tmp_target_speed_x=a_params->dash_speed;
+              tmp_speed_x_value=tmp_target_speed_x; // Skip interpolation
+            }
+
+            if(action_frames>a_params->dash_frames)
+            {
+              // todo:skidding
+              // todo:dashing
+              if(a_intent->dir == a_state->moving_dir)
+              {
+                cur_action=ACTION_RUNNING_GROUND;
+              }
+              else
+              {
+                cur_action=ACTION_STAND_BY_GROUND;
+              }
+              action_frames=0;
+            }
+          } 
+          else
+          {
+            if(a_intent->crouch)
+            {
+              cur_action=ACTION_CROUCHING_GROUND;
+              action_frames=0;
+            }
+          }
+
+          if(cur_action==ACTION_CROUCHING_GROUND
+            && a_intent->crouch!=true)
+          {
+            cur_action=ACTION_STAND_BY_GROUND;
             action_frames=0;
           }
-        } 
-        else
-        {
-          if(a_intent->crouch)
+
+          if(a_intent->jump)
           {
-            cur_action=ACTION_CROUCHING_GROUND;
-            action_frames=0;
+            if(cur_action!=ACTION_CROUCHING_TO_JUMP_GROUND)
+            {
+              cur_action=ACTION_CROUCHING_TO_JUMP_GROUND;
+              action_frames=0;
+            }
+            // crouch always unconditionally here.
+            if (action_frames>=a_params->jump_crouch_frames)
+            {
+              // Do normal jump
+              *a_speed_y = -a_params->jump_force;
+              a_intent->jump = false;
+              cur_action = ACTION_STAND_BY_AIR;
+              a_state->double_jumps_left=1;
+              action_frames=0;
+            }
           }
-        }
-          
-        if(cur_action==ACTION_CROUCHING_GROUND
-          && a_intent->crouch!=true)
-        {
-          cur_action=ACTION_STAND_BY_GROUND;
-          action_frames=0;
-        }
-          
-        if(a_intent->jump)
-        {
-          if(cur_action!=ACTION_CROUCHING_TO_JUMP_GROUND)
+          // Do short jump when cancelling jump early.
+          else if (cur_action==ACTION_CROUCHING_TO_JUMP_GROUND)
           {
-            cur_action=ACTION_CROUCHING_TO_JUMP_GROUND;
-            action_frames=0;
-          }
-          // crouch always unconditionally here.
-          if (action_frames>=a_params->jump_crouch_frames)
-          {
-            // Do normal jump
-            *a_speed_y = -a_params->jump_force;
+            *a_speed_y = -a_params->short_hop_force;
             a_intent->jump = false;
             cur_action = ACTION_STAND_BY_AIR;
             a_state->double_jumps_left=1;
             action_frames=0;
           }
-        }
-        // Do short jump when cancelling jump early.
-        else if (cur_action==ACTION_CROUCHING_TO_JUMP_GROUND)
-        {
-          *a_speed_y = -a_params->short_hop_force;
-          a_intent->jump = false;
-          cur_action = ACTION_STAND_BY_AIR;
-          a_state->double_jumps_left=1;
-          action_frames=0;
-        }
-        // Note: state might not be on ground anymore.
-      } // both air and ground behavior covered.
+          // Note: state might not be on ground anymore.
+        } // both air and ground behavior covered.
       
       // Inertia when slowing down
       // TODO: make state specific.
@@ -1359,7 +1373,7 @@ void main(void) {
       a_state->current_action=cur_action;
       ++action_frames;
       a_state->current_action_frames=MIN(action_frames,255);
-      
+      }
       if(i<NUM_ACTORS)
       {
         a_state++;
@@ -1764,6 +1778,11 @@ void main(void) {
         // Select sprite
         // TODO: deduplicate
         // todo: improve facing difection.
+        if(a_state->current_action == ACTION_SPAWNING)
+        {
+          *a_sprite=char1fast_fall_sprites[i];
+        }
+        else
         {         
           unsigned char sprite_var;
           if(a_state->facing_dir == DIR_RIGHT)//right
@@ -1833,33 +1852,48 @@ void main(void) {
           }
         }
       }
-      
-      if(actor_speedx[i]>0
-        && actor_prev_x[i]>actor_x[i])
       {
-      	effects[current_effect_index].type=EXPLOSION_HORIZONTAL;
-        effects[current_effect_index].variant=4+i; // apply flip and player color
-        effects[current_effect_index].x=255-20;
-        effects[current_effect_index].y=actor_y[i]-10;
-        effects[current_effect_index].frames=30;
-        current_effect_index++;
-        if(current_effect_index==4)
+        bool do_respawn=false;
+        if(actor_speedx[i]>0
+          && actor_prev_x[i]>actor_x[i])
         {
-          current_effect_index=0;
+          effects[current_effect_index].type=EXPLOSION_HORIZONTAL;
+          effects[current_effect_index].variant=4+i; // apply flip and player color
+          effects[current_effect_index].x=255-20;
+          effects[current_effect_index].y=actor_y[i]-10;
+          effects[current_effect_index].frames=30;
+          current_effect_index++;
+          if(current_effect_index==4)
+          {
+            current_effect_index=0;
+          }
+          do_respawn=true;
         }
-      }
-      else if( actor_speedx[i]<0
-        && actor_prev_x[i]<actor_x[i])
-      {
-        effects[current_effect_index].type=EXPLOSION_HORIZONTAL;
-        effects[current_effect_index].variant=0+i; // apply player color
-        effects[current_effect_index].x=4;
-        effects[current_effect_index].y=actor_y[i];
-        effects[current_effect_index].frames=30;
-        current_effect_index++;
-        if(current_effect_index==4)
+        else if( actor_speedx[i]<0
+          && actor_prev_x[i]<actor_x[i])
         {
-          current_effect_index=0;
+          effects[current_effect_index].type=EXPLOSION_HORIZONTAL;
+          effects[current_effect_index].variant=0+i; // apply player color
+          effects[current_effect_index].x=4;
+          effects[current_effect_index].y=actor_y[i];
+          effects[current_effect_index].frames=30;
+          current_effect_index++;
+          if(current_effect_index==4)
+          {
+            current_effect_index=0;
+          }
+          do_respawn=true;
+        }
+        if(do_respawn)
+        {
+          actor_x[i]=120;
+          actor_y[i]=40;
+          actor_speedy[i]=0;
+          actor_speedx[i]=0;
+          a_state->current_action=ACTION_SPAWNING;
+          a_state->current_action_frames=90;
+          a_state->current_attack=ATTACK_NONE;
+          a_state->damage=0;
         }
       }
             
