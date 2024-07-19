@@ -209,7 +209,8 @@ DEF_METASPRITE_2x2_VARS(char1sway,0xf4);
 DEF_METASPRITE_2x2_VARS(char1airneutral,0xf8);
 
 DEF_METASPRITE_1x1_VARS(small_hit,0x80);
-DEF_METASPRITE_2x2_VARS(side_explosion,0xb0);
+DEF_METASPRITE_2x2_VARS(horizontal_explosion,0xb0);
+DEF_METASPRITE_2x2_VARS(vertical_explosion,0xb4);
 
 
 void p(byte type, byte x, byte y, byte len)
@@ -990,7 +991,7 @@ void main(void) {
   while (1) {
     unsigned char i, j; // actor index
     unsigned char oam_id; // sprite ID
-    byte background_color=0x1c;
+    byte background_color=0x00;//0x1c;
     
     
     // Controls
@@ -1854,7 +1855,22 @@ void main(void) {
       }
       {
         bool do_respawn=false;
-        if(actor_speedx[i]>0
+        if(actor_speedy[i]>0
+          && actor_prev_y[i]>actor_y[i])
+        {
+          effects[current_effect_index].type=EXPLOSION_VERTICAL;
+          effects[current_effect_index].variant=4+i; // apply flip and player color
+          effects[current_effect_index].x=actor_x[i];
+          effects[current_effect_index].y=210;
+          effects[current_effect_index].frames=30;
+          current_effect_index++;
+          if(current_effect_index==4)
+          {
+            current_effect_index=0;
+          }
+          do_respawn=true;
+        }
+        else if(actor_speedx[i]>0
           && actor_prev_x[i]>actor_x[i])
         {
           effects[current_effect_index].type=EXPLOSION_HORIZONTAL;
@@ -1926,16 +1942,36 @@ void main(void) {
               break;
             case EXPLOSION_HORIZONTAL:
             case EXPLOSION_VERTICAL:
-              a_sprite=&side_explosion_sprites[current_effect->variant];
+              if(current_effect->type == EXPLOSION_HORIZONTAL)
+              {
+                a_sprite=&horizontal_explosion_sprites[current_effect->variant];
+              }
+              else
+              {
+                a_sprite=&vertical_explosion_sprites[current_effect->variant];
+              }
               if(current_effect->frames & (byte)0x02)
               {
                 visible=false;
               }
               else
               {
-                if(current_effect->frames>16)
+                if(current_effect->frames>20)
                 {
-                  background_color=0x2d;
+                  switch(current_effect->variant&0x03){
+                    case 0://todo:optimize with array for colors
+                      background_color=0x1c;
+                      break;
+                    case 1:
+                      background_color=0x17;
+                      break;
+                    case 2:
+                      background_color=0x19;
+                      break;
+                    case 3:
+                      background_color=0x16;
+                      break;
+                  }
                 }
               }
               break;
