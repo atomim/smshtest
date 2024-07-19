@@ -209,6 +209,7 @@ DEF_METASPRITE_2x2_VARS(char1sway,0xf4);
 DEF_METASPRITE_2x2_VARS(char1airneutral,0xf8);
 
 DEF_METASPRITE_1x1_VARS(small_hit,0x80);
+DEF_METASPRITE_2x2_VARS(side_explosion,0xb0);
 
 
 void p(byte type, byte x, byte y, byte len)
@@ -336,8 +337,9 @@ struct platform{
 
 enum effect_type
 {
-  HIT_LEFT=0,
-  HIT_RIGHT=1,
+  HIT=0,
+  EXPLOSION_HORIZONTAL=2,
+  EXPLOSION_VERTICAL=3,
 };
 
 struct effect{
@@ -359,6 +361,8 @@ byte actor_x[NUM_ACTORS];      // Position
 byte actor_y[NUM_ACTORS];
 byte actor_xf[NUM_ACTORS];     // Fraction
 byte actor_yf[NUM_ACTORS];
+byte actor_prev_x[NUM_ACTORS]; // Perevious pos to track going outside
+byte actor_prev_y[NUM_ACTORS];
 short int actor_speedx[NUM_ACTORS]; // Speed
 short int actor_speedy[NUM_ACTORS];
 void *actor_sprite[NUM_ACTORS];// Which sprite to show
@@ -985,6 +989,7 @@ void main(void) {
   while (1) {
     unsigned char i, j; // actor index
     unsigned char oam_id; // sprite ID
+    byte background_color=0x1c;
     
     
     // Controls
@@ -1091,6 +1096,10 @@ void main(void) {
       bool on_ground=false;
       byte action_frames=0;
       log_state_update(0);
+      
+      // Record initial position to detect going over the edge of the screen
+      actor_prev_x[i]=actor_x[i];
+      actor_prev_y[i]=actor_y[i];
       
       cur_action=a_state->current_action;
       action_frames=a_state->current_action_frames;
@@ -1479,7 +1488,7 @@ void main(void) {
                 switch(tmp_attack_type)
                 {
                   case ATTACK_NORMAL_RIGHT:
-                    effects[current_effect_index].type=HIT_LEFT;
+                    effects[current_effect_index].type=HIT;
                     effects[current_effect_index].variant=4; // apply flip
                     effects[current_effect_index].x=attack_x1+6;
                     effects[current_effect_index].y=attack_y1;
@@ -1487,7 +1496,7 @@ void main(void) {
                     force_y=-(20+(a_state->damage<<1));
                     break;
                   case ATTACK_NORMAL_LEFT:
-                    effects[current_effect_index].type=HIT_LEFT;
+                    effects[current_effect_index].type=HIT;
                     effects[current_effect_index].variant=0;
                     effects[current_effect_index].x=attack_x1-6;
                     effects[current_effect_index].y=attack_y1;
@@ -1495,7 +1504,7 @@ void main(void) {
                     force_y=-(20+(a_state->damage<<1));
                     break;
                   case ATTACK_AIR_NEUTRAL_RIGHT:
-                    effects[current_effect_index].type=HIT_LEFT;
+                    effects[current_effect_index].type=HIT;
                     effects[current_effect_index].variant=4;
                     effects[current_effect_index].x=attack_x1+2;
                     effects[current_effect_index].y=attack_y1;
@@ -1503,7 +1512,7 @@ void main(void) {
                     force_y=-(10+(a_state->damage<<2));
                     break;
                   case ATTACK_AIR_NEUTRAL_LEFT:
-                    effects[current_effect_index].type=HIT_LEFT;
+                    effects[current_effect_index].type=HIT;
                     effects[current_effect_index].variant=0;
                     effects[current_effect_index].x=attack_x1-2;
                     effects[current_effect_index].y=attack_y1;
@@ -1825,8 +1834,35 @@ void main(void) {
         }
       }
       
-      
-      
+      if(actor_speedx[i]>0
+        && actor_prev_x[i]>actor_x[i])
+      {
+      	effects[current_effect_index].type=EXPLOSION_HORIZONTAL;
+        effects[current_effect_index].variant=4+i; // apply flip and player color
+        effects[current_effect_index].x=255-20;
+        effects[current_effect_index].y=actor_y[i]-10;
+        effects[current_effect_index].frames=30;
+        current_effect_index++;
+        if(current_effect_index==4)
+        {
+          current_effect_index=0;
+        }
+      }
+      else if( actor_speedx[i]<0
+        && actor_prev_x[i]<actor_x[i])
+      {
+        effects[current_effect_index].type=EXPLOSION_HORIZONTAL;
+        effects[current_effect_index].variant=0+i; // apply player color
+        effects[current_effect_index].x=4;
+        effects[current_effect_index].y=actor_y[i];
+        effects[current_effect_index].frames=30;
+        current_effect_index++;
+        if(current_effect_index==4)
+        {
+          current_effect_index=0;
+        }
+      }
+            
       if(i<NUM_ACTORS)
       {
         a_state++;
@@ -1848,8 +1884,32 @@ void main(void) {
       {
         if(current_effect->frames>0)
         {
-          a_sprite=&small_hit_sprites[current_effect->variant];
-          oam_id = oam_meta_spr(current_effect->x, current_effect->y, oam_id, *a_sprite);
+          bool visible=true;
+          switch(current_effect->type)
+          {
+            case HIT:
+              a_sprite=&small_hit_sprites[current_effect->variant];
+              break;
+            case EXPLOSION_HORIZONTAL:
+            case EXPLOSION_VERTICAL:
+              a_sprite=&side_explosion_sprites[current_effect->variant];
+              if(current_effect->frames & (byte)0x02)
+              {
+                visible=false;
+              }
+              else
+              {
+                if(current_effect->frames>16)
+                {
+                  background_color=0x2d;
+                }
+              }
+              break;
+          }
+          if(visible)
+          {
+            oam_id = oam_meta_spr(current_effect->x, current_effect->y, oam_id, *a_sprite);
+          }
           current_effect->frames--;
         }
         current_effect++;
@@ -1952,7 +2012,7 @@ void main(void) {
         }
         //else
         {
-          PPU.vram.data = 0x1c;
+          PPU.vram.data = background_color;
         }
       }
       clock=newclock;
