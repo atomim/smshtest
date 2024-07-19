@@ -122,22 +122,10 @@ const unsigned char name[]={\
 // !optimize ai randomness (day 3)
 // !edge grab sprite (day 2.5)
 // !edge grab (day 5)
-// /dash attack animation (day 5.5)
-// *double tap dash
-// /dash attack
-// *more clear attack/animation state 
 // !crouch
 // !better fall through control
-// *crouch dash cancel
-// *running inertia
-// *Implement target speed and acceleration per action
-// *dash dancing support
-// *dash attack
+// !running inertia
 // !ai to avoid falling off(day 3)
-// *neutral attack (day 5.5)
-// *clarify states and logic more(enums and masks)
-// *support coordinates outside of screen
-// *KO on arena edges, spawning
 // !make opposite directions mutually exclusive (day 5)
 // !keep last facing direction when stopping (day 5)
 // !Fix fast fall falling through (day 5)
@@ -155,9 +143,24 @@ const unsigned char name[]={\
 // !add bg decoration (day 4)
 // !fix failing jump and add asserts (day 4/5)
 // !fix fall through (day 5)
-// *fix perf of indexing spritess
-// *fix bug where green stops when yellow hangs
-
+// !neutral attack (day 5.5)
+// !fix bug where green stops when yellow hangs (day 7)
+// !implement target speed (day 7.5)
+// !optimized text rendering (day 6)
+// !implement air kick (day 8)
+// *implement hitlag 
+// *fix perf of indexing sprites
+// *clarify states and logic more(enums and masks)
+// *support coordinates outside of screen
+// *KO on arena edges, spawning
+// *acceleration per action
+// *dash dancing support
+// *dash attack
+// *crouch dash cancel
+// /dash attack animation (day 5.5)
+// *double tap dash
+// /dash attack
+// *more clear attack/animation state 
 
 
 DEF_METASPRITE_2x2_VARS(char1icon,0xd0);
@@ -172,6 +175,7 @@ DEF_METASPRITE_2x2_VARS(char1fast_fall,0xe4);
 DEF_METASPRITE_2x2_VARS(char1dash,0xe8);
 DEF_METASPRITE_2x2_VARS(char1ledge,0xf0);
 DEF_METASPRITE_2x2_VARS(char1sway,0xf4);
+DEF_METASPRITE_2x2_VARS(char1airneutral,0xf8);
 
 
 void p(byte type, byte x, byte y, byte len)
@@ -180,7 +184,7 @@ void p(byte type, byte x, byte y, byte len)
   vram_fill(0x90+type, len);
   vram_adr(NTADR_A(x+1,y+1));
   vram_fill(0x05, 1);
-  vram_fill(0x04, len-4);
+  vram_fill(0x09, len-4);
   vram_fill(0x06, 1);
   if(type==0)
   {
@@ -232,6 +236,8 @@ enum attack_type
   ATTACK_NORMAL_LEFT=1,
   ATTACK_NORMAL_RIGHT=2,
   ATTACK_DASH=3,
+  ATTACK_AIR_NEUTRAL_LEFT=4,
+  ATTACK_AIR_NEUTRAL_RIGHT=5,
 };
 
 
@@ -278,6 +284,7 @@ struct params{
   byte double_jumps;
   byte jump_crouch_frames;
   byte attack_neutral_frames;
+  byte attack_air_neutral_frames;
   short int fall_force;
   short int fall_limit;
   short int fast_fall;
@@ -326,6 +333,7 @@ struct intent* intentlookup[NUM_ACTORS];
 struct state* o_state;
 short int tmp_speed_x_value;
 short int tmp_target_speed_x;
+enum attack_type tmp_attack_type;
 #pragma bss-name (pop)
 #pragma data-name(pop)
 
@@ -511,7 +519,7 @@ void update_debug_info(byte player,struct vram_inst* inst)
 }
 
 #pragma warn (unused-param, push, off)
-#if 0
+#if 1
 #define log_state_update(a) ;
 #define log_start_physics(a) ;
 #define log_precalc_hitboxes(a) ;
@@ -843,6 +851,7 @@ void initialize_player(byte num, byte type, byte x, byte y)
       actor_params[num].double_jumps = 1;       // 1 (All)
       actor_params[num].jump_crouch_frames = 6; // 6 (M)
       actor_params[num].attack_neutral_frames = 6; // try something
+      actor_params[num].attack_air_neutral_frames = 16; // try something
       actor_params[num].fall_force = 22;        // 0.11 (M, Grav)
       actor_params[num].fall_limit = 436;       // 2.13 (M)
       actor_params[num].fast_fall = 614;        // 3 (M)
@@ -1069,6 +1078,21 @@ void main(void) {
         {
           *a_speed_y = MIN(*a_speed_y,a_params->fall_limit);
         }
+        
+        // Air attack
+        if(a_intent->attack) // todo: switch to check animated/cancelable attack
+        {
+          if(a_state->facing_dir == DIR_RIGHT)
+          {
+            a_state->current_attack = ATTACK_AIR_NEUTRAL_RIGHT;
+          } else
+          {
+            a_state->current_attack = ATTACK_AIR_NEUTRAL_LEFT;
+          }
+          a_state->current_attack_frames_left = a_params->attack_air_neutral_frames;
+          cur_action = ACTION_STAND_BY_AIR;
+        }
+        
         // jump
         if(a_intent->jump)
         {
@@ -1328,7 +1352,7 @@ void main(void) {
       
       
       
-      o_state = actor_state;
+      o_state = actor_state; // Reset opponent state to first actor
               
       // Process attacks (from others): 3 scanlines
       {
@@ -1343,41 +1367,85 @@ void main(void) {
             o_state++;
             continue;
           }
-          if(o_state->current_attack != ATTACK_NONE)
+          tmp_attack_type = o_state->current_attack;
+          if(tmp_attack_type != ATTACK_NONE)
           {
             // TODO: precalc hitboxes.
             byte attack_y1; //upper
             byte attack_y2; //lower
             byte attack_x1; //left
             byte attack_x2; //right
+            byte offset_y1;
+            byte offset_y2;
+            byte offset_x1;
+            byte offset_x2;
+            
             short int force_x;
+            short int force_y;
+            
+            switch(tmp_attack_type)
+            {
+              case ATTACK_NORMAL_RIGHT:
+                offset_y1 = 0;
+                offset_y2 = 6;
+                offset_x1 = 10;
+                offset_x2 = 18;
+                break;
+              case ATTACK_NORMAL_LEFT:
+                offset_y1 = 0;
+                offset_y2 = 6;
+                offset_x1 = 256-2;
+                offset_x2 = 6;
+                break;
+              case ATTACK_AIR_NEUTRAL_RIGHT:
+                offset_y1 = 6;
+                offset_y2 = 18;
+                offset_x1 = 8;
+                offset_x2 = 19;
+                break;
+              case ATTACK_AIR_NEUTRAL_LEFT:
+                offset_y1 = 6;
+                offset_y2 = 16;
+                offset_x1 = 256-3;
+                offset_x2 = 8;
+                break;
+            }
+            
             // Attack box y
-            attack_y1=actor_y[k];
-            attack_y2=attack_y1+6;
+            attack_y1=actor_y[k]+offset_y1;
+            attack_y2=actor_y[k]+offset_y2;
             // Hit box y comparison
             if(actor_y[i]<attack_y2 // attack bottom lower than head
               && actor_y[i]+17 > attack_y1 // feet lower than attack top
               )
             {
-              
-              if (o_state->current_attack == ATTACK_NORMAL_RIGHT)
-              {
-	        attack_x1=actor_x[k]+10;
-                attack_x2=actor_x[k]+18;
-                force_x=40+a_state->damage;
-              }
-              else if (o_state->current_attack == ATTACK_NORMAL_LEFT)
-              {
-                attack_x1=actor_x[k]-2;
-                attack_x2=actor_x[k]+6;
-                force_x=-40-a_state->damage;
-              }
-              
-              if(actor_x[i]+12>attack_x1
+              attack_x1=actor_x[k]+offset_x1;
+              attack_x2=actor_x[k]+offset_x2;
+              if(actor_x[i]+12>attack_x1 // actor hitbox comparison
                  && actor_x[i]+4<attack_x2
                 )
               {
-                actor_speedy[i]=-(50+(a_state->damage<<2));
+                switch(tmp_attack_type)
+                {
+                  case ATTACK_NORMAL_RIGHT:
+                    force_x=40+a_state->damage;
+                    force_y=-(20+(a_state->damage<<1));
+                    break;
+                  case ATTACK_NORMAL_LEFT:
+                    force_x=-40-a_state->damage;
+                    force_y=-(20+(a_state->damage<<1));
+                    break;
+                  case ATTACK_AIR_NEUTRAL_RIGHT:
+                    force_x=80+a_state->damage;
+                    force_y=-(10+(a_state->damage<<2));
+                    break;
+                  case ATTACK_AIR_NEUTRAL_LEFT:
+                    force_x=-80-a_state->damage;
+                    force_y=-(10+(a_state->damage<<2));
+                    break;
+                }
+                
+                actor_speedy[i]=force_y;
                 //actor_x[i]=(short int)actor_x[i];
                 actor_speedx[i]+=force_x;
                 a_state->damage+=3;
@@ -1386,7 +1454,7 @@ void main(void) {
             }
           }
           o_state++;
-        }
+        } 
       }
     
       log_start_physics(0); // (3 scanlines before log_collision_calculation)
@@ -1665,7 +1733,12 @@ void main(void) {
           }
           else
           {
-            if(a_intent->fast_fall) // Todo: use state instead of intent.
+            if(a_state->current_attack == ATTACK_AIR_NEUTRAL_LEFT
+               || a_state->current_attack == ATTACK_AIR_NEUTRAL_RIGHT)
+            {
+              *a_sprite = char1airneutral_sprites[sprite_var];
+            }
+            else if(a_intent->fast_fall) // Todo: use state instead of intent.
             {
               *a_sprite = char1fast_fall_sprites[sprite_var];
             }
