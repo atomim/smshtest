@@ -48,6 +48,26 @@ const char PALETTE[33] = {
 
 #define ATTR 0
 
+#define DEF_METASPRITE_1x1_VARS(name,code)\
+DEF_METASPRITE_1x1(name##_a,code,0)\
+DEF_METASPRITE_1x1(name##_b,code,1)\
+DEF_METASPRITE_1x1(name##_c,code,2)\
+DEF_METASPRITE_1x1(name##_d,code,3)\
+DEF_METASPRITE_1x1_FLIP(name##_a2,code,0)\
+DEF_METASPRITE_1x1_FLIP(name##_b2,code,1)\
+DEF_METASPRITE_1x1_FLIP(name##_c2,code,2)\
+DEF_METASPRITE_1x1_FLIP(name##_d2,code,3)\
+void* name##_sprites[]={\
+  &name##_a\
+  ,&name##_b\
+  ,&name##_c\
+  ,&name##_d\
+  ,&name##_a2\
+  ,&name##_b2\
+  ,&name##_c2\
+  ,&name##_d2};
+
+
 #define DEF_METASPRITE_2x2_VARS(name,code)\
 DEF_METASPRITE_2x2(name##_a,code,0)\
 DEF_METASPRITE_2x2(name##_b,code,1)\
@@ -68,7 +88,14 @@ void* name##_sprites[]={\
   ,&name##_d2};
   
 
-
+#define DEF_METASPRITE_1x1(name,code,pal)\
+const unsigned char name[]={\
+        0,      0,      (code)+0,   pal, \
+        128};
+#define DEF_METASPRITE_1x1_FLIP(name,code,pal)\
+const unsigned char name[]={\
+        0,      0,      (code)+0,   (pal)|OAM_FLIP_H, \
+        128};
 
 // define a 2x2 metasprite
 #define DEF_METASPRITE_2x2(name,code,pal)\
@@ -149,6 +176,10 @@ const unsigned char name[]={\
 // !optimized text rendering (day 6)
 // !implement air kick (day 8)
 // *implement hitlag 
+// *control hitbox effect during attack(active frames, damage amount) 
+// *advanced knockback calculation https://www.ssbwiki.com/Knockback#Formula
+// *hitstun based on knockback
+// *respawn invincibility
 // *fix perf of indexing sprites
 // *clarify states and logic more(enums and masks)
 // *support coordinates outside of screen
@@ -176,6 +207,8 @@ DEF_METASPRITE_2x2_VARS(char1dash,0xe8);
 DEF_METASPRITE_2x2_VARS(char1ledge,0xf0);
 DEF_METASPRITE_2x2_VARS(char1sway,0xf4);
 DEF_METASPRITE_2x2_VARS(char1airneutral,0xf8);
+
+DEF_METASPRITE_1x1_VARS(small_hit,0x80);
 
 
 void p(byte type, byte x, byte y, byte len)
@@ -300,6 +333,24 @@ struct platform{
   byte can_fall_through;
   byte has_edge;
 };
+
+enum effect_type
+{
+  HIT_LEFT=0,
+  HIT_RIGHT=1,
+};
+
+struct effect{
+  enum effect_type type;
+  byte variant;
+  byte x;
+  byte y;
+  byte frames;
+};
+
+byte current_effect_index;
+struct effect effects[4];
+
 
 #define NUM_ACTORS 3
 #define NUM_PLATFORMS 4
@@ -1428,18 +1479,34 @@ void main(void) {
                 switch(tmp_attack_type)
                 {
                   case ATTACK_NORMAL_RIGHT:
+                    effects[current_effect_index].type=HIT_LEFT;
+                    effects[current_effect_index].variant=4; // apply flip
+                    effects[current_effect_index].x=attack_x1+6;
+                    effects[current_effect_index].y=attack_y1;
                     force_x=40+a_state->damage;
                     force_y=-(20+(a_state->damage<<1));
                     break;
                   case ATTACK_NORMAL_LEFT:
+                    effects[current_effect_index].type=HIT_LEFT;
+                    effects[current_effect_index].variant=0;
+                    effects[current_effect_index].x=attack_x1-6;
+                    effects[current_effect_index].y=attack_y1;
                     force_x=-40-a_state->damage;
                     force_y=-(20+(a_state->damage<<1));
                     break;
                   case ATTACK_AIR_NEUTRAL_RIGHT:
+                    effects[current_effect_index].type=HIT_LEFT;
+                    effects[current_effect_index].variant=4;
+                    effects[current_effect_index].x=attack_x1+2;
+                    effects[current_effect_index].y=attack_y1;
                     force_x=80+a_state->damage;
                     force_y=-(10+(a_state->damage<<2));
                     break;
                   case ATTACK_AIR_NEUTRAL_LEFT:
+                    effects[current_effect_index].type=HIT_LEFT;
+                    effects[current_effect_index].variant=0;
+                    effects[current_effect_index].x=attack_x1-2;
+                    effects[current_effect_index].y=attack_y1;
                     force_x=-80-a_state->damage;
                     force_y=-(10+(a_state->damage<<2));
                     break;
@@ -1450,6 +1517,14 @@ void main(void) {
                 actor_speedx[i]+=force_x;
                 a_state->damage+=3;
                 a_state->damage_vis_frames+=3;
+                
+                effects[current_effect_index].frames=6;
+                effects[current_effect_index].variant+=i; // Apply player color
+                current_effect_index++;
+                if(current_effect_index==4)
+                {
+                  current_effect_index=0;
+                }
               }
             }
           }
@@ -1764,12 +1839,28 @@ void main(void) {
       log_end_physics(0);
     }
     log_update_sprites(0);
-    // Update Sprites
+    oam_id = 0;
+    // Update Effect Sprites
+    {
+      struct effect* current_effect;
+      current_effect=effects;
+      for (i=0; i<4; i++)
+      {
+        if(current_effect->frames>0)
+        {
+          a_sprite=&small_hit_sprites[current_effect->variant];
+          oam_id = oam_meta_spr(current_effect->x, current_effect->y, oam_id, *a_sprite);
+          current_effect->frames--;
+        }
+        current_effect++;
+      }
+    }
+    // Update Actor Sprites
     {
       a_state=actor_state;
       a_sprite=actor_sprite;
       // start with OAMid/sprite 0
-      oam_id = 0;
+      
       // draw and move all actors
       for (i=0; i<NUM_ACTORS; i++) 
       {
