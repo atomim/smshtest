@@ -9,6 +9,8 @@ for the nametable. We copy it from an array in ROM to video RAM.
 // include CC65 NES Header (PPU)
 #include <nes.h>
 
+#include "apu.h"
+
 //#defi ne CFGFILE test
 
 // link the pattern table into CHR ROM
@@ -350,6 +352,7 @@ struct effect{
   byte x;
   byte y;
   byte frames;
+  bool isNew;
 };
 
 byte current_effect_index;
@@ -939,6 +942,10 @@ void main(void) {
   char last_pad = 0;
   char pad_rising = 0;
   char pad_falling =0;
+  char pad2 = 0;
+  char last_pad2 = 0;
+  char pad_rising2 = 0;
+  char pad_falling2 =0;
   bool demo_mode_on = true;
   register char i;
   
@@ -984,6 +991,7 @@ void main(void) {
   nmi_set_callback(irq_nmi_callback);
   // enable PPU rendering (turn on screen)
   ppu_on_all();
+  APU_ENABLE(ENABLE_PULSE0 | ENABLE_PULSE1 | ENABLE_TRIANGLE | ENABLE_NOISE);
 
   //
   // MAIN LOOP
@@ -991,15 +999,19 @@ void main(void) {
   while (1) {
     unsigned char i, j; // actor index
     unsigned char oam_id; // sprite ID
-    byte background_color=0x00;//0x1c;
+    byte background_color=0x1c;//0x1c;
     
+    APU.pulse[0].control=0xff;
     
     // Controls
     last_pad = pad;
     pad = pad_poll(0);
     pad_rising = pad^last_pad&pad;
     pad_falling = pad^last_pad&last_pad;
-    
+    last_pad2 = pad2;
+    pad2 = pad_poll(1);
+    pad_rising2 = pad2^last_pad2&pad2;
+    pad_falling2 = pad2^last_pad2&last_pad2;
     
     // Disable demo mode
     if(demo_mode_on && pad & PAD_START)
@@ -1155,7 +1167,7 @@ void main(void) {
           }
 
           // Air attack
-          if(a_intent->attack) // todo: switch to check animated/cancelable attack
+          if(a_intent->attack && a_state->current_attack==ATTACK_NONE) // todo: switch to check animated/cancelable attack
           {
             if(a_state->facing_dir == DIR_RIGHT)
             {
@@ -1166,6 +1178,10 @@ void main(void) {
             }
             a_state->current_attack_frames_left = a_params->attack_air_neutral_frames;
             cur_action = ACTION_STAND_BY_AIR;
+            
+            //APU_NOISE_DECAY(0x7f,0x0,0x6);
+            APU_PULSE_DECAY(PULSE_CH0, 0x300, 0x0, 0xc1, 0x2);
+            APU_PULSE_SWEEP(0, 0, 2, 0x0);
           }
 
           // jump
@@ -1200,7 +1216,9 @@ void main(void) {
 
           // Initiate attack from any non-animated state.
           // Set action to stand by ground.
-          if(a_intent->attack && cur_action != ACTION_DASHING_GROUND) // todo: switch to check animated/cancelable attack
+          if(a_intent->attack 
+             && cur_action != ACTION_DASHING_GROUND
+             && a_state->current_attack==ATTACK_NONE) // todo: switch to check animated/cancelable attack
           {
             if(a_state->facing_dir == DIR_RIGHT)
             {
@@ -1211,6 +1229,8 @@ void main(void) {
             }
             a_state->current_attack_frames_left = a_params->attack_neutral_frames;
             cur_action = ACTION_STAND_BY_GROUND;
+            APU_PULSE_DECAY(PULSE_CH0, 0x130, 0x0, 0xc1, 0x3);
+            APU_PULSE_SWEEP(0, 0, 2, 0x0);
           }
 
 
@@ -1507,6 +1527,7 @@ void main(void) {
                     effects[current_effect_index].variant=4; // apply flip
                     effects[current_effect_index].x=attack_x1+6;
                     effects[current_effect_index].y=attack_y1;
+                    effects[current_effect_index].isNew=true;
                     force_x=40+a_state->damage;
                     force_y=-(20+(a_state->damage<<1));
                     break;
@@ -1515,6 +1536,7 @@ void main(void) {
                     effects[current_effect_index].variant=0;
                     effects[current_effect_index].x=attack_x1-6;
                     effects[current_effect_index].y=attack_y1;
+                    effects[current_effect_index].isNew=true;
                     force_x=-40-a_state->damage;
                     force_y=-(20+(a_state->damage<<1));
                     break;
@@ -1523,6 +1545,7 @@ void main(void) {
                     effects[current_effect_index].variant=4;
                     effects[current_effect_index].x=attack_x1+2;
                     effects[current_effect_index].y=attack_y1;
+                    effects[current_effect_index].isNew=true;
                     force_x=80+a_state->damage;
                     force_y=-(10+(a_state->damage<<2));
                     break;
@@ -1531,6 +1554,7 @@ void main(void) {
                     effects[current_effect_index].variant=0;
                     effects[current_effect_index].x=attack_x1-2;
                     effects[current_effect_index].y=attack_y1;
+                    effects[current_effect_index].isNew=true;
                     force_x=-80-a_state->damage;
                     force_y=-(10+(a_state->damage<<2));
                     break;
@@ -1863,6 +1887,7 @@ void main(void) {
           effects[current_effect_index].x=actor_x[i];
           effects[current_effect_index].y=210;
           effects[current_effect_index].frames=30;
+          effects[current_effect_index].isNew=true;
           current_effect_index++;
           if(current_effect_index==4)
           {
@@ -1878,6 +1903,7 @@ void main(void) {
           effects[current_effect_index].x=255-20;
           effects[current_effect_index].y=actor_y[i]-10;
           effects[current_effect_index].frames=30;
+          effects[current_effect_index].isNew=true;
           current_effect_index++;
           if(current_effect_index==4)
           {
@@ -1893,6 +1919,7 @@ void main(void) {
           effects[current_effect_index].x=4;
           effects[current_effect_index].y=actor_y[i];
           effects[current_effect_index].frames=30;
+          effects[current_effect_index].isNew=true;
           current_effect_index++;
           if(current_effect_index==4)
           {
@@ -1960,7 +1987,7 @@ void main(void) {
                 {
                   switch(current_effect->variant&0x03){
                     case 0://todo:optimize with array for colors
-                      background_color=0x1c;
+                      background_color=0x0c;
                       break;
                     case 1:
                       background_color=0x17;
@@ -1979,6 +2006,30 @@ void main(void) {
           if(visible)
           {
             oam_id = oam_meta_spr(current_effect->x, current_effect->y, oam_id, *a_sprite);
+          }
+          if(current_effect->isNew)
+          {
+            
+            if(current_effect->type == HIT)
+            {
+              //APU_PULSE_DECAY(PULSE_CH0, 0x120, 0x0, 0xc1, 0x3);
+              //APU_PULSE_SWEEP(0, 0, 2, 0x0);
+            }
+             else
+            {
+              APU_PULSE_DECAY(PULSE_CH1, 0x4ff, 0x0, 0xc1, 0xF);
+              APU_PULSE_SWEEP(PULSE_CH1, 0X0, 0X3, 0x1);
+              
+              APU_TRIANGLE_LENGTH(0xff,0x3);
+            }
+            current_effect->isNew=false;
+          }
+          else
+          {
+            if(current_effect->type != HIT)
+            {
+              APU_TRIANGLE_LENGTH(0xff-current_effect->frames<<2,0x4);
+            }
           }
           current_effect->frames--;
         }
