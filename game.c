@@ -308,6 +308,7 @@ struct state{
   byte damage_vis_frames;
   bool isAI;
   bool lives;
+  byte wins;
 };
 
 
@@ -542,6 +543,33 @@ void update_player_status(struct vram_inst* inst)
     inst->_1_lda_val = '%';
   }
 }
+
+void update_player_wins(struct vram_inst* inst)
+{
+  short int wins = a_state->wins;
+  // TODO: move to setting damage.
+  
+  if((wins&0b00001111)>=10) // Convert to BCD
+  {
+    wins+=6;
+    a_state->wins=wins;
+  }
+  
+  if(wins==0)
+  {
+    inst->_1_lda_val = ' ';
+    inst++;
+    inst->_1_lda_val = ' ';
+    inst++;
+  }
+  else
+  {
+    inst->_1_lda_val = '0'+(wins>>4);
+    inst++;
+    inst->_1_lda_val = '0'+(wins&0b00001111);
+  }
+}
+
 
 
 void update_debug_info(byte player,struct vram_inst* inst)
@@ -982,20 +1010,24 @@ void main(void) {
 
   initialize_player(0,0,54+10,143);
   actor_state[0].isAI = true;
+  actor_state[0].wins = -1;
   //initialize_player(0,0,128,99);
   
   #if NUM_ACTORS>1
   initialize_player(1,0,128,99);
   actor_state[1].isAI = true;
+  actor_state[1].wins = -1;
   #endif
   //for(;;)
   #if NUM_ACTORS>2
   initialize_player(2,0,128,99);
   actor_state[2].isAI = true;
+  actor_state[2].wins = -1;
   #endif
   #if NUM_ACTORS>3
   initialize_player(3,0,128,99);
   actor_state[3].isAI = true;
+  actor_state[3].wins = -1;
   #endif
   
   // Draw bg and set platforms data.
@@ -1061,29 +1093,60 @@ void main(void) {
     
     // Winning
     if((a_state[0].lives==0)
+       #if NUM_ACTORS>1
        +(a_state[1].lives==0)
+       #endif
+       #if NUM_ACTORS>2
        +(a_state[2].lives==0)
+       #endif
+       #if NUM_ACTORS>3
+       +(a_state[3].lives==0)
+       #endif
        ==NUM_ACTORS-1)
     {
+      if(actor_state[0].lives>0)actor_state[0].wins+=1;
       initialize_player(0,0,54+10,143-20);
       actor_state[0].current_action=ACTION_SPAWNING;
       actor_state[0].current_action_frames=180;
       #if NUM_ACTORS>1
+      if(actor_state[1].lives>0)actor_state[1].wins+=1;
       initialize_player(1,0,128,99-20);
       actor_state[1].current_action=ACTION_SPAWNING;
       actor_state[1].current_action_frames=180;
       #endif
-      //for(;;)
       #if NUM_ACTORS>2
+      if(actor_state[2].lives>0)actor_state[2].wins+=1;
       initialize_player(2,0,170,99-0);
       actor_state[2].current_action=ACTION_SPAWNING;
       actor_state[2].current_action_frames=180;
       #endif
       #if NUM_ACTORS>3
+      if(actor_state[3].lives>0)actor_state[3].wins+=1;
       initialize_player(3,0,140,99-20);
       actor_state[3].current_action=ACTION_SPAWNING;
       actor_state[3].current_action_frames=180;
       #endif
+      
+      {
+        a_state=actor_state;
+        update_player_wins(vram_line+5);
+        #if NUM_ACTORS >1
+        a_state++;
+        update_player_wins(vram_line+12);
+        #endif
+
+        #if NUM_ACTORS >2
+        a_state++;
+        update_player_wins(vram_line+19);
+        #endif
+
+        #if NUM_ACTORS >3
+        a_state++;
+        update_player_wins(vram_line+26);
+        #endif
+      }
+    
+      
       resetLives=true;
     }
     
