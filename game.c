@@ -1097,7 +1097,7 @@ void main(void) {
           actor_intent[0].attack = true;
         }
       }
-      else
+      if(player2joined)
       {
         if(pad2 & PAD_LEFT && !(pad2 & PAD_RIGHT))
         {
