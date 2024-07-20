@@ -1091,37 +1091,49 @@ void main(void) {
       resetLives=true;
     }
     
+    // TODO: fix winning of player 3(green)
     // Winning
-    if((a_state[0].lives==0)
+    if(((a_state[0].lives==0?1:0)
        #if NUM_ACTORS>1
-       +(a_state[1].lives==0)
+       +(a_state[1].lives==0?1:0)
        #endif
        #if NUM_ACTORS>2
-       +(a_state[2].lives==0)
+       +(a_state[2].lives==0?1:0)
        #endif
        #if NUM_ACTORS>3
-       +(a_state[3].lives==0)
+       +(a_state[3].lives==0?1:0)
        #endif
-       ==NUM_ACTORS-1)
+       )==NUM_ACTORS-1)
     {
-      if(actor_state[0].lives>0)actor_state[0].wins+=1;
+      if(actor_state[0].lives>0)
+      {
+        actor_state[0].wins+=1;
+      }
       initialize_player(0,0,54+10,143-20);
       actor_state[0].current_action=ACTION_SPAWNING;
       actor_state[0].current_action_frames=180;
       #if NUM_ACTORS>1
-      if(actor_state[1].lives>0)actor_state[1].wins+=1;
-      initialize_player(1,0,128,99-20);
+      if(actor_state[1].lives>0)
+        {
+        actor_state[1].wins+=1;
+      }initialize_player(1,0,128,99-20);
       actor_state[1].current_action=ACTION_SPAWNING;
       actor_state[1].current_action_frames=180;
       #endif
       #if NUM_ACTORS>2
-      if(actor_state[2].lives>0)actor_state[2].wins+=1;
+      if(actor_state[2].lives>0)
+      {
+        actor_state[2].wins+=1;
+      }
       initialize_player(2,0,170,99-0);
       actor_state[2].current_action=ACTION_SPAWNING;
       actor_state[2].current_action_frames=180;
       #endif
       #if NUM_ACTORS>3
-      if(actor_state[3].lives>0)actor_state[3].wins+=1;
+      if(actor_state[3].lives>0)
+      {
+        actor_state[3].wins+=1;
+      }
       initialize_player(3,0,140,99-20);
       actor_state[3].current_action=ACTION_SPAWNING;
       actor_state[3].current_action_frames=180;
