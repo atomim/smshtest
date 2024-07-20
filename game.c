@@ -930,7 +930,6 @@ void initialize_player(byte num, byte type, byte x, byte y)
       break;
   }
   actor_state[num].current_action=ACTION_STAND_BY_GROUND;
-  actor_state[num].isAI = true;
   actor_state[num].lives = 4;
 }
 
@@ -981,18 +980,22 @@ void main(void) {
   // set background palette colors
   pal_all(PALETTE);
 
-  initialize_player(0,0,54+10,143);  
+  initialize_player(0,0,54+10,143);
+  actor_state[0].isAI = true;
   //initialize_player(0,0,128,99);
   
   #if NUM_ACTORS>1
   initialize_player(1,0,128,99);
+  actor_state[1].isAI = true;
   #endif
   //for(;;)
   #if NUM_ACTORS>2
   initialize_player(2,0,128,99);
+  actor_state[2].isAI = true;
   #endif
   #if NUM_ACTORS>3
   initialize_player(3,0,128,99);
+  actor_state[3].isAI = true;
   #endif
   
   // Draw bg and set platforms data.
@@ -1053,6 +1056,34 @@ void main(void) {
       actor_state[1].isAI=false;
       actor_state[1].current_action=ACTION_SPAWNING;
       player2joined=true;
+      resetLives=true;
+    }
+    
+    // Winning
+    if((a_state[0].lives==0)
+       +(a_state[1].lives==0)
+       +(a_state[2].lives==0)
+       ==NUM_ACTORS-1)
+    {
+      initialize_player(0,0,54+10,143-20);
+      actor_state[0].current_action=ACTION_SPAWNING;
+      actor_state[0].current_action_frames=180;
+      #if NUM_ACTORS>1
+      initialize_player(1,0,128,99-20);
+      actor_state[1].current_action=ACTION_SPAWNING;
+      actor_state[1].current_action_frames=180;
+      #endif
+      //for(;;)
+      #if NUM_ACTORS>2
+      initialize_player(2,0,170,99-0);
+      actor_state[2].current_action=ACTION_SPAWNING;
+      actor_state[2].current_action_frames=180;
+      #endif
+      #if NUM_ACTORS>3
+      initialize_player(3,0,140,99-20);
+      actor_state[3].current_action=ACTION_SPAWNING;
+      actor_state[3].current_action_frames=180;
+      #endif
       resetLives=true;
     }
     
@@ -2145,7 +2176,10 @@ void main(void) {
       for (i=0; i<NUM_ACTORS; i++) 
       {
         // TODO: add camera
-        oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, *a_sprite);
+        if(a_state[i].lives!=0)
+        {
+          oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, *a_sprite);
+        }
         a_sprite++;
       }
       
@@ -2163,7 +2197,7 @@ void main(void) {
           curIcon=*a_icon;
         }
         zp_x=icon_pos_x[i];
-        oam_id = oam_meta_spr(zp_x+(a_state->damage_vis_frames>>2), 190-(a_state->damage_vis_frames), oam_id, curIcon);
+        oam_id = oam_meta_spr(zp_x+(a_state->damage_vis_frames>>2), 189-(a_state->damage_vis_frames), oam_id, curIcon);
         switch(a_state->lives)
         {
           case 0:
