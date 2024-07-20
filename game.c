@@ -1163,8 +1163,7 @@ void main(void) {
       {
         do
         {
-          
-          if(simulate_i>=NUM_ACTORS)
+          if(simulate_i>=NUM_ACTORS-1)
           {
             simulate_i=0;
           }
@@ -1173,6 +1172,7 @@ void main(void) {
             simulate_i+=1;
           }
         }while(actor_state[simulate_i].isAI==false);
+        
         simulate_player(simulate_i);
       }
     }
