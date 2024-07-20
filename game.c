@@ -1030,28 +1030,31 @@ void main(void) {
       //ppu_wait_frame();
       demo_mode_on=false;
       actor_state[0].isAI=false;
+      player1joined=true;
     }
     
     if(!player2joined && pad2 & PAD_START)
     {
       demo_mode_on=false;
       actor_state[1].isAI=false;
+      player2joined=true;
     }
     
+    num_ai=NUM_ACTORS-player1joined-player2joined;
     // Control of player 1 intent based on controller.
     
-    if(demo_mode_on)
-    {
-      num_ai=NUM_ACTORS;
-      simulate_player(simulate_i);
-      simulate_i+=1;
-      if(simulate_i>NUM_ACTORS-1)
-      {
-        simulate_i=0;
-      }
-    
-    } 
-    else
+    //if(demo_mode_on)
+    //{
+    //  num_ai=NUM_ACTORS;
+    //  simulate_player(simulate_i);
+    //  simulate_i+=1;
+    //  if(simulate_i>NUM_ACTORS-1)
+    //  {
+    //    simulate_i=0;
+    //  }
+    //
+    //} 
+    //else
     {
       // Reset left/right.
       if(player1joined)
@@ -1135,13 +1138,15 @@ void main(void) {
         }
       }
 
-      num_ai=NUM_ACTORS-player1joined-player2joined;
       if(num_ai>0)
       {
+        if(actor_state[simulate_i].isAI) // TODO: fix simulation probabilities. Do not skip simulation like this.
+        {
+          simulate_player(simulate_i);
+        }
         simulate_i+=1;
-        simulate_player(simulate_i);
         #if NUM_ACTORS >1
-        if(simulate_i>NUM_ACTORS-2)
+        if(simulate_i>NUM_ACTORS-num_ai+1)
         #endif
         {
           simulate_i=0;
