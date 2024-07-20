@@ -1140,18 +1140,20 @@ void main(void) {
 
       if(num_ai>0)
       {
-        if(actor_state[simulate_i].isAI) // TODO: fix simulation probabilities. Do not skip simulation like this.
+        do
         {
-          simulate_player(simulate_i);
-        }
-        simulate_i+=1;
-        #if NUM_ACTORS >1
-        if(simulate_i>NUM_ACTORS-num_ai+1)
-        #endif
-        {
-          simulate_i=0;
-        }
-        }
+          
+          if(simulate_i>=NUM_ACTORS)
+          {
+            simulate_i=0;
+          }
+          else
+          {
+            simulate_i+=1;
+          }
+        }while(actor_state[simulate_i].isAI==false);
+        simulate_player(simulate_i);
+      }
     }
     
     //
