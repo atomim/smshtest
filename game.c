@@ -185,7 +185,9 @@ const unsigned char name[]={\
 // *fix perf of indexing sprites
 // *clarify states and logic more(enums and masks)
 // *support coordinates outside of screen
-// *KO on arena edges, spawning
+// !KO on arena edges, spawning
+// !counting lives
+// *restart after winning
 // *acceleration per action
 // *dash dancing support
 // *dash attack
@@ -193,12 +195,18 @@ const unsigned char name[]={\
 // /dash attack animation (day 5.5)
 // *double tap dash
 // /dash attack
-// *more clear attack/animation state 
+// *more clear attack/animation state
+// *Add a separate state for dead
 
 
 DEF_METASPRITE_2x2_VARS(AIicon,0xc8);
 DEF_METASPRITE_2x2_VARS(char1icon,0xd0);
-DEF_METASPRITE_2x2_VARS(char13lives,0xac);
+
+DEF_METASPRITE_1x1_VARS(char1lives4,0x8c);
+DEF_METASPRITE_1x1_VARS(char1lives3,0x8d);
+DEF_METASPRITE_1x1_VARS(char1lives2,0x8e);
+DEF_METASPRITE_1x1_VARS(char1lives1,0x8f);
+DEF_METASPRITE_1x1_VARS(char1lives0,0x8b);
 
 DEF_METASPRITE_2x2_VARS(char1neutral,0xd4);
 DEF_METASPRITE_2x2_VARS(char1stand,0xd8);
@@ -282,7 +290,7 @@ enum attack_type
 
 struct state{
   enum action_state current_action;
-  short int damage;
+  byte damage;
   //bool on_ground;
   enum dir moving_dir;
   enum dir facing_dir;
@@ -299,6 +307,7 @@ struct state{
   bool fall_through_triggered;
   byte damage_vis_frames;
   bool isAI;
+  bool lives;
 };
 
 
@@ -922,6 +931,7 @@ void initialize_player(byte num, byte type, byte x, byte y)
   }
   actor_state[num].current_action=ACTION_STAND_BY_GROUND;
   actor_state[num].isAI = true;
+  actor_state[num].lives = 4;
 }
 
 
@@ -1006,6 +1016,7 @@ void main(void) {
     unsigned char i, j; // actor index
     unsigned char oam_id; // sprite ID
     byte background_color=0x1c;//0x1c;
+    bool resetLives=false;
     
     APU.pulse[0].control=0xff;
     
@@ -1030,31 +1041,41 @@ void main(void) {
       //ppu_wait_frame();
       demo_mode_on=false;
       actor_state[0].isAI=false;
+      actor_state[0].current_action=ACTION_SPAWNING;
+      actor_state[0].damage=0;
       player1joined=true;
+      resetLives=true;
     }
     
     if(!player2joined && pad2 & PAD_START)
     {
       demo_mode_on=false;
       actor_state[1].isAI=false;
+      actor_state[1].current_action=ACTION_SPAWNING;
       player2joined=true;
+      resetLives=true;
     }
     
-    num_ai=NUM_ACTORS-player1joined-player2joined;
-    // Control of player 1 intent based on controller.
+    if(resetLives)
+    {
+      actor_state[0].damage=0;
+      actor_state[0].lives=4;
+      actor_state[1].damage=0;
+      actor_state[1].lives=4;
+      #if NUM_ACTORS >2
+      actor_state[2].damage=0;
+      actor_state[2].lives=4;
+      #endif
+      #if NUM_ACTORS >3
+      actor_state[3].damage=0;
+      actor_state[3].lives=4;
+      #endif
+    }
     
-    //if(demo_mode_on)
-    //{
-    //  num_ai=NUM_ACTORS;
-    //  simulate_player(simulate_i);
-    //  simulate_i+=1;
-    //  if(simulate_i>NUM_ACTORS-1)
-    //  {
-    //    simulate_i=0;
-    //  }
-    //
-    //} 
-    //else
+    
+    num_ai=NUM_ACTORS-player1joined-player2joined;
+    
+    // Control of player intents based on controller or simulation.
     {
       // Reset left/right.
       if(player1joined)
@@ -1179,7 +1200,11 @@ void main(void) {
       actor_prev_x[i]=actor_x[i];
       actor_prev_y[i]=actor_y[i];
       
-      if(a_state->current_action == ACTION_SPAWNING)
+      if(a_state->lives==0)
+      {
+        // Do not simulate if dead
+      }
+      else if(a_state->current_action == ACTION_SPAWNING)
       {
         a_state->current_action_frames--;
         if((a_state->current_action_frames < 60
@@ -1433,31 +1458,31 @@ void main(void) {
           // Note: state might not be on ground anymore.
         } // both air and ground behavior covered.
       
-      // Inertia when slowing down
-      // TODO: make state specific.
-      // TODO: Implement target speed instead of only targeting to 0
-      if(a_intent->dir == DIR_NONE)
-      {
-        tmp_target_speed_x = 0;
-      }
-      
-      // Interpolate toward target speed.
-      if(tmp_speed_x_value>tmp_target_speed_x)
-      {
-        tmp_speed_x_value= tmp_speed_x_value-20;
-        tmp_speed_x_value= MAX(tmp_target_speed_x,tmp_speed_x_value);
-      }
-      else if(tmp_speed_x_value<tmp_target_speed_x)
-      {
-        tmp_speed_x_value= tmp_speed_x_value+20;
-        tmp_speed_x_value= MIN(tmp_target_speed_x,tmp_speed_x_value);
-      }
-      *a_speed_x=tmp_speed_x_value;
-      
-      a_intent->attack = false;
-      a_state->current_action=cur_action;
-      ++action_frames;
-      a_state->current_action_frames=MIN(action_frames,255);
+        // Inertia when slowing down
+        // TODO: make state specific.
+        // TODO: Implement target speed instead of only targeting to 0
+        if(a_intent->dir == DIR_NONE)
+        {
+          tmp_target_speed_x = 0;
+        }
+
+        // Interpolate toward target speed.
+        if(tmp_speed_x_value>tmp_target_speed_x)
+        {
+          tmp_speed_x_value= tmp_speed_x_value-20;
+          tmp_speed_x_value= MAX(tmp_target_speed_x,tmp_speed_x_value);
+        }
+        else if(tmp_speed_x_value<tmp_target_speed_x)
+        {
+          tmp_speed_x_value= tmp_speed_x_value+20;
+          tmp_speed_x_value= MIN(tmp_target_speed_x,tmp_speed_x_value);
+        }
+        *a_speed_x=tmp_speed_x_value;
+
+        a_intent->attack = false;
+        a_state->current_action=cur_action;
+        ++action_frames;
+        a_state->current_action_frames=MIN(action_frames,255);
       }
       if(i<NUM_ACTORS)
       {
@@ -1514,6 +1539,7 @@ void main(void) {
       o_state = actor_state; // Reset opponent state to first actor
               
       // Process attacks (from others): 3 scanlines
+      if(a_state->current_action!=ACTION_SPAWNING)
       {
         unsigned char k;
         for(k = 0; k<NUM_ACTORS;k++) 
@@ -1867,9 +1893,13 @@ void main(void) {
         // Select sprite
         // TODO: deduplicate
         // todo: improve facing difection.
-        if(a_state->current_action == ACTION_SPAWNING)
+        if(a_state->lives ==0)
         {
-          *a_sprite=char1fast_fall_sprites[i];
+          *a_sprite=char1fast_fall_sprites[i]; // Use fast falling sprite for dead.
+        }
+        else if(a_state->current_action == ACTION_SPAWNING)
+        {
+          *a_sprite=char1fast_fall_sprites[i]; // Use fast falling sprite for spawn. 
         }
         else
         {         
@@ -1993,14 +2023,19 @@ void main(void) {
         }
         if(do_respawn)
         {
-          actor_x[i]=120;
-          actor_y[i]=40;
+          if(a_state->lives>0)
+          {
+            actor_x[i]=120;
+            actor_y[i]=40;
+            a_state->lives-=1;
+          }
           actor_speedy[i]=0;
           actor_speedx[i]=0;
           a_state->current_action=ACTION_SPAWNING;
           a_state->current_action_frames=90;
           a_state->current_attack=ATTACK_NONE;
           a_state->damage=0;
+
         }
       }
             
@@ -2129,8 +2164,24 @@ void main(void) {
         }
         zp_x=icon_pos_x[i];
         oam_id = oam_meta_spr(zp_x+(a_state->damage_vis_frames>>2), 190-(a_state->damage_vis_frames), oam_id, curIcon);
-        // Todo: enable health indicator after refactoring sprite rendering.
-        oam_id = oam_meta_spr(zp_x+3, 200, oam_id, char13lives_sprites[i]);
+        switch(a_state->lives)
+        {
+          case 0:
+            oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives0_sprites[i]);
+            break;
+          case 1:
+            oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives1_sprites[i]);
+            break;
+          case 2:
+            oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives2_sprites[i]);
+            break;
+          case 3:
+            oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives3_sprites[i]);
+            break;
+          case 4:
+            oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives4_sprites[i]);
+            break;
+        }
         a_icon++;
         a_iconAI++;
         a_state++;
