@@ -196,6 +196,7 @@ const unsigned char name[]={\
 // *more clear attack/animation state 
 
 
+DEF_METASPRITE_2x2_VARS(AIicon,0xc8);
 DEF_METASPRITE_2x2_VARS(char1icon,0xd0);
 DEF_METASPRITE_2x2_VARS(char13lives,0xac);
 
@@ -297,6 +298,7 @@ struct state{
   bool on_edge;
   bool fall_through_triggered;
   byte damage_vis_frames;
+  bool isAI;
 };
 
 
@@ -387,6 +389,7 @@ short int* a_speed_x;
 short int* a_speed_y;
 void ** a_sprite;
 void ** a_icon;
+void ** a_iconAI;
 byte zp_x;
 byte zp_y;
 struct intent* intentlookup[NUM_ACTORS];
@@ -918,6 +921,7 @@ void initialize_player(byte num, byte type, byte x, byte y)
       break;
   }
   actor_state[num].current_action=ACTION_STAND_BY_GROUND;
+  actor_state[num].isAI = true;
 }
 
 
@@ -947,6 +951,8 @@ void main(void) {
   char pad_rising2 = 0;
   char pad_falling2 =0;
   bool demo_mode_on = true;
+  bool player1joined = false;
+  bool player2joined = false;
   register char i;
   
   a_intent=actor_intent;
@@ -985,7 +991,7 @@ void main(void) {
   if (demo_mode_on)
   {
     vram_adr(NTADR_A(1,27));
-    vram_write("Press START to stop Demo mode.", 30);
+    vram_write("Press START to join the game.", 30);
   }
 
   nmi_set_callback(irq_nmi_callback);
@@ -1008,20 +1014,28 @@ void main(void) {
     pad = pad_poll(0);
     pad_rising = pad^last_pad&pad;
     pad_falling = pad^last_pad&last_pad;
+    
     last_pad2 = pad2;
     pad2 = pad_poll(1);
     pad_rising2 = pad2^last_pad2&pad2;
     pad_falling2 = pad2^last_pad2&last_pad2;
     
-    // Disable demo mode
-    if(demo_mode_on && pad & PAD_START)
+    // Player1Join
+    if(!player1joined && pad & PAD_START)
     {
-      ppu_wait_frame();
-      ppu_off();
-      reset_level_and_bg();
-      ppu_on_all();
+      //ppu_wait_frame();
+      //ppu_off();
+      //reset_level_and_bg();
+      //ppu_on_all();
       //ppu_wait_frame();
       demo_mode_on=false;
+      actor_state[0].isAI=false;
+    }
+    
+    if(!player2joined && pad2 & PAD_START)
+    {
+      demo_mode_on=false;
+      actor_state[1].isAI=false;
     }
     
     // Control of player 1 intent based on controller.
@@ -1040,45 +1054,88 @@ void main(void) {
     else
     {
       // Reset left/right.
-      if(pad & PAD_LEFT && !(pad & PAD_RIGHT))
+      if(player1joined)
       {
-          actor_intent[0].dir = DIR_LEFT;
-      }
-      else if(pad & PAD_RIGHT)
-      {
-          actor_intent[0].dir = DIR_RIGHT;
+        if(pad & PAD_LEFT && !(pad & PAD_RIGHT))
+        {
+            actor_intent[0].dir = DIR_LEFT;
+        }
+        else if(pad & PAD_RIGHT)
+        {
+            actor_intent[0].dir = DIR_RIGHT;
+        }
+        else
+        {
+          actor_intent[0].dir = DIR_NONE;
+        }
+
+        // Jump / cancel jump when state changes. Let simulation update consume intent in between.
+        if(pad_rising & PAD_A)
+        {
+          actor_intent[0].jump = true;
+        }
+        if((pad & PAD_A )==false && actor_intent[0].jump==true)
+        {
+          actor_intent[0].jump = false;
+        }
+
+        actor_intent[0].fast_fall = pad & PAD_DOWN?true:false;
+        if(pad_rising & PAD_DOWN)
+        {
+          actor_intent[0].crouch = true;
+        }
+        else if (pad_falling & PAD_DOWN)
+        {
+          actor_intent[0].crouch = false;
+        }
+
+        if(pad_rising & PAD_B)
+        {
+          actor_intent[0].attack = true;
+        }
       }
       else
       {
-      	actor_intent[0].dir = DIR_NONE;
-      }
-      
-      // Jump / cancel jump when state changes. Let simulation update consume intent in between.
-      if(pad_rising & PAD_A)
-      {
-      	actor_intent[0].jump = true;
-      }
-      if((pad & PAD_A )==false && actor_intent[0].jump==true)
-      {
-      	actor_intent[0].jump = false;
+        if(pad2 & PAD_LEFT && !(pad2 & PAD_RIGHT))
+        {
+            actor_intent[1].dir = DIR_LEFT;
+        }
+        else if(pad2 & PAD_RIGHT)
+        {
+            actor_intent[1].dir = DIR_RIGHT;
+        }
+        else
+        {
+          actor_intent[1].dir = DIR_NONE;
+        }
+
+        // Jump / cancel jump when state changes. Let simulation update consume intent in between.
+        if(pad_rising2 & PAD_A)
+        {
+          actor_intent[1].jump = true;
+        }
+        if((pad2 & PAD_A )==false && actor_intent[0].jump==true)
+        {
+          actor_intent[1].jump = false;
+        }
+
+        actor_intent[1].fast_fall = pad2 & PAD_DOWN?true:false;
+        if(pad_rising2 & PAD_DOWN)
+        {
+          actor_intent[1].crouch = true;
+        }
+        else if (pad_falling2 & PAD_DOWN)
+        {
+          actor_intent[1].crouch = false;
+        }
+
+        if(pad_rising2 & PAD_B)
+        {
+          actor_intent[1].attack = true;
+        }
       }
 
-      actor_intent[0].fast_fall = pad & PAD_DOWN?true:false;
-      if(pad_rising & PAD_DOWN)
-      {
-      	actor_intent[0].crouch = true;
-      }
-      else if (pad_falling & PAD_DOWN)
-      {
-        actor_intent[0].crouch = false;
-      }
-      
-      if(pad_rising & PAD_B)
-      {
-        actor_intent[0].attack = true;
-      }
-
-      num_ai=NUM_ACTORS-1;
+      num_ai=NUM_ACTORS-player1joined-player2joined;
       if(num_ai>0)
       {
         simulate_i+=1;
@@ -2051,13 +2108,24 @@ void main(void) {
       }
       
       a_icon=char1icon_sprites;
+      a_iconAI=AIicon_sprites;
       for (i=0; i<NUM_ACTORS; i++) 
       {
+        const unsigned char* curIcon;
+        if(a_state->isAI)
+        {
+          curIcon=*a_iconAI;
+        }
+        else
+        {
+          curIcon=*a_icon;
+        }
         zp_x=icon_pos_x[i];
-        oam_id = oam_meta_spr(zp_x+(a_state->damage_vis_frames>>2), 190-(a_state->damage_vis_frames), oam_id, *a_icon);
+        oam_id = oam_meta_spr(zp_x+(a_state->damage_vis_frames>>2), 190-(a_state->damage_vis_frames), oam_id, curIcon);
         // Todo: enable health indicator after refactoring sprite rendering.
         oam_id = oam_meta_spr(zp_x+3, 200, oam_id, char13lives_sprites[i]);
         a_icon++;
+        a_iconAI++;
         a_state++;
       }
       // hide rest of sprites
