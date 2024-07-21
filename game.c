@@ -223,6 +223,8 @@ DEF_METASPRITE_1x1_VARS(small_hit,0x80);
 DEF_METASPRITE_2x2_VARS(horizontal_explosion,0xb0);
 DEF_METASPRITE_2x2_VARS(vertical_explosion,0xb4);
 
+DEF_METASPRITE_1x1_VARS(winner,0x81);
+
 
 void p(byte type, byte x, byte y, byte len)
 {
@@ -356,6 +358,7 @@ enum effect_type
   HIT=0,
   EXPLOSION_HORIZONTAL=2,
   EXPLOSION_VERTICAL=3,
+  WIN=4,
 };
 
 struct effect{
@@ -1109,38 +1112,97 @@ void main(void) {
     {
       if(actor_state[0].lives>0)
       {
+        initialize_player(0,0,54+10,143-20);
         actor_state[0].wins+=1;
+        effects[current_effect_index].type=WIN;
+        effects[current_effect_index].variant=0;
+        effects[current_effect_index].x=actor_x[0]+4;
+        effects[current_effect_index].y=actor_y[0]-8;
+        effects[current_effect_index].frames=140;
+        current_effect_index++;
+        if(current_effect_index==4)
+        {
+          current_effect_index=0;
+        }
       }
-      initialize_player(0,0,54+10,143-20);
+      else
+      {
+        initialize_player(0,0,54+10,143-20);
+      }
       actor_state[0].current_action=ACTION_SPAWNING;
-      actor_state[0].current_action_frames=180;
+      actor_state[0].current_action_frames=140;
       
       #if NUM_ACTORS>1
+      
       if(actor_state[1].lives>0)
       {
+        initialize_player(1,0,128,99-20);
         actor_state[1].wins+=1;
+        effects[current_effect_index].type=WIN;
+        effects[current_effect_index].variant=1;
+        effects[current_effect_index].x=actor_x[1]+4;
+        effects[current_effect_index].y=actor_y[1]-8;
+        effects[current_effect_index].frames=140;
+        current_effect_index++;
+        if(current_effect_index==4)
+        {
+          current_effect_index=0;
+        }
       }
-      initialize_player(1,0,128,99-20);
+      else
+      {
+        initialize_player(1,0,128,99-20);
+      }
       actor_state[1].current_action=ACTION_SPAWNING;
-      actor_state[1].current_action_frames=180;
+      actor_state[1].current_action_frames=140;
       #endif
       
       #if NUM_ACTORS>2
+      
       if(actor_state[2].lives>0)
       {
+        initialize_player(2,0,170,99-0);
         actor_state[2].wins+=1;
+        effects[current_effect_index].type=WIN;
+        effects[current_effect_index].variant=2;
+        effects[current_effect_index].x=actor_x[2]+4;
+        effects[current_effect_index].y=actor_y[2]-8;
+        effects[current_effect_index].frames=140;
+        current_effect_index++;
+        if(current_effect_index==4)
+        {
+          current_effect_index=0;
+        }
       }
-      initialize_player(2,0,170,99-0);
+      else
+      {
+        initialize_player(2,0,170,99-0);
+      }
       actor_state[2].current_action=ACTION_SPAWNING;
       actor_state[2].current_action_frames=180;
       #endif
       
       #if NUM_ACTORS>3
+      
       if(actor_state[3].lives>0)
       {
+        initialize_player(3,0,140,99-20);
         actor_state[3].wins+=1;
+        effects[current_effect_index].type=WIN;
+        effects[current_effect_index].variant=3;
+        effects[current_effect_index].x=actor_x[3]+4;
+        effects[current_effect_index].y=actor_y[3]+8;
+        effects[current_effect_index].frames=140;
+        current_effect_index++;
+        if(current_effect_index==4)
+        {
+          current_effect_index=0;
+        }
       }
-      initialize_player(3,0,140,99-20);
+      else
+      {
+        initialize_player(3,0,140,99-20);
+      }
       actor_state[3].current_action=ACTION_SPAWNING;
       actor_state[3].current_action_frames=180;
       #endif
@@ -2213,6 +2275,9 @@ void main(void) {
                   }
                 }
               }
+              break;
+            case WIN:
+              a_sprite=&winner_sprites[current_effect->variant];
               break;
           }
           if(visible)
