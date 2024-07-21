@@ -1119,6 +1119,7 @@ void main(void) {
         effects[current_effect_index].x=actor_x[0]+4;
         effects[current_effect_index].y=actor_y[0]-8;
         effects[current_effect_index].frames=140;
+        effects[current_effect_index].isNew=true;
         current_effect_index++;
         if(current_effect_index==4)
         {
@@ -1143,6 +1144,7 @@ void main(void) {
         effects[current_effect_index].x=actor_x[1]+4;
         effects[current_effect_index].y=actor_y[1]-8;
         effects[current_effect_index].frames=140;
+        effects[current_effect_index].isNew=true;
         current_effect_index++;
         if(current_effect_index==4)
         {
@@ -1168,6 +1170,7 @@ void main(void) {
         effects[current_effect_index].x=actor_x[2]+4;
         effects[current_effect_index].y=actor_y[2]-8;
         effects[current_effect_index].frames=140;
+        effects[current_effect_index].isNew=true;
         current_effect_index++;
         if(current_effect_index==4)
         {
@@ -1193,6 +1196,7 @@ void main(void) {
         effects[current_effect_index].x=actor_x[3]+4;
         effects[current_effect_index].y=actor_y[3]+8;
         effects[current_effect_index].frames=140;
+        effects[current_effect_index].isNew=true;
         current_effect_index++;
         if(current_effect_index==4)
         {
@@ -2292,7 +2296,12 @@ void main(void) {
               //APU_PULSE_DECAY(PULSE_CH0, 0x120, 0x0, 0xc1, 0x3);
               //APU_PULSE_SWEEP(0, 0, 2, 0x0);
             }
-             else
+            else if(current_effect->type == WIN)
+            {
+              APU_PULSE_DECAY(PULSE_CH0, 0x4ff, 0x0, 0xc1, 0xF);
+              APU_PULSE_SWEEP(PULSE_CH0, 0X0, 0X2, 0x1);
+            }
+            else
             {
               APU_PULSE_DECAY(PULSE_CH1, 0x4ff, 0x0, 0xc1, 0xF);
               APU_PULSE_SWEEP(PULSE_CH1, 0X0, 0X3, 0x1);
