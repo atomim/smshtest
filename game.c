@@ -370,8 +370,9 @@ struct effect{
   bool isNew;
 };
 
-byte current_effect_index;
+
 struct effect effects[4];
+byte current_effect_index;
 
 
 #define NUM_ACTORS 3
@@ -398,6 +399,7 @@ struct state* a_state;
 struct intent* a_intent;
 struct params* a_params;
 struct platform* cur_platform;
+struct effect* current_effect;
 short int* a_speed_x;
 short int* a_speed_y;
 void ** a_sprite;
@@ -994,7 +996,9 @@ void main(void) {
   bool player2joined = false;
   register char i;
   
-  a_intent=actor_intent;
+  current_effect=effects;
+  
+  a_intent=actor_intent;    
   for(i =0;i<NUM_ACTORS;i++)
   {
      intentlookup[i]=a_intent;a_intent++;
@@ -1114,16 +1118,21 @@ void main(void) {
       {
         initialize_player(0,0,54+10,143-20);
         actor_state[0].wins+=1;
-        effects[current_effect_index].type=WIN;
-        effects[current_effect_index].variant=0;
-        effects[current_effect_index].x=actor_x[0]+4;
-        effects[current_effect_index].y=actor_y[0]-8;
-        effects[current_effect_index].frames=140;
-        effects[current_effect_index].isNew=true;
+        current_effect->type=WIN;
+        current_effect->variant=0;
+        current_effect->x=actor_x[0]+4;
+        current_effect->y=actor_y[0]-8;
+        current_effect->frames=140;
+        current_effect->isNew=true;
         current_effect_index++;
         if(current_effect_index==4)
         {
           current_effect_index=0;
+          current_effect=effects;
+        }
+        else
+        {
+          current_effect++;
         }
       }
       else
@@ -1139,16 +1148,21 @@ void main(void) {
       {
         initialize_player(1,0,128,99-20);
         actor_state[1].wins+=1;
-        effects[current_effect_index].type=WIN;
-        effects[current_effect_index].variant=1;
-        effects[current_effect_index].x=actor_x[1]+4;
-        effects[current_effect_index].y=actor_y[1]-8;
-        effects[current_effect_index].frames=140;
-        effects[current_effect_index].isNew=true;
+        current_effect->type=WIN;
+        current_effect->variant=1;
+        current_effect->x=actor_x[1]+4;
+        current_effect->y=actor_y[1]-8;
+        current_effect->frames=140;
+        current_effect->isNew=true;
         current_effect_index++;
         if(current_effect_index==4)
         {
           current_effect_index=0;
+          current_effect=effects;
+        }
+        else
+        {
+          current_effect++;
         }
       }
       else
@@ -1165,16 +1179,21 @@ void main(void) {
       {
         initialize_player(2,0,170,99-0);
         actor_state[2].wins+=1;
-        effects[current_effect_index].type=WIN;
-        effects[current_effect_index].variant=2;
-        effects[current_effect_index].x=actor_x[2]+4;
-        effects[current_effect_index].y=actor_y[2]-8;
-        effects[current_effect_index].frames=140;
-        effects[current_effect_index].isNew=true;
+        current_effect->type=WIN;
+        current_effect->variant=2;
+        current_effect->x=actor_x[2]+4;
+        current_effect->y=actor_y[2]-8;
+        current_effect->frames=140;
+        current_effect->isNew=true;
         current_effect_index++;
         if(current_effect_index==4)
         {
           current_effect_index=0;
+          current_effect=effects;
+        }
+        else
+        {
+          current_effect++;
         }
       }
       else
@@ -1191,16 +1210,21 @@ void main(void) {
       {
         initialize_player(3,0,140,99-20);
         actor_state[3].wins+=1;
-        effects[current_effect_index].type=WIN;
-        effects[current_effect_index].variant=3;
-        effects[current_effect_index].x=actor_x[3]+4;
-        effects[current_effect_index].y=actor_y[3]+8;
-        effects[current_effect_index].frames=140;
-        effects[current_effect_index].isNew=true;
+        current_effect->type=WIN;
+        current_effect->variant=3;
+        current_effect->x=actor_x[3]+4;
+        current_effect->y=actor_y[3]+8;
+        current_effect->frames=140;
+        current_effect->isNew=true;
         current_effect_index++;
         if(current_effect_index==4)
         {
           current_effect_index=0;
+          current_effect=effects;
+        }
+        else
+        {
+          current_effect++;
         }
       }
       else
@@ -1792,38 +1816,38 @@ void main(void) {
                 switch(tmp_attack_type)
                 {
                   case ATTACK_NORMAL_RIGHT:
-                    effects[current_effect_index].type=HIT;
-                    effects[current_effect_index].variant=4; // apply flip
-                    effects[current_effect_index].x=attack_x1+6;
-                    effects[current_effect_index].y=attack_y1;
-                    effects[current_effect_index].isNew=true;
+                    current_effect->type=HIT;
+                    current_effect->variant=4; // apply flip
+                    current_effect->x=attack_x1+6;
+                    current_effect->y=attack_y1;
+                    current_effect->isNew=true;
                     force_x=40+a_state->damage;
                     force_y=-(20+(a_state->damage<<1));
                     break;
                   case ATTACK_NORMAL_LEFT:
-                    effects[current_effect_index].type=HIT;
-                    effects[current_effect_index].variant=0;
-                    effects[current_effect_index].x=attack_x1-6;
-                    effects[current_effect_index].y=attack_y1;
-                    effects[current_effect_index].isNew=true;
+                    current_effect->type=HIT;
+                    current_effect->variant=0;
+                    current_effect->x=attack_x1-6;
+                    current_effect->y=attack_y1;
+                    current_effect->isNew=true;
                     force_x=-40-a_state->damage;
                     force_y=-(20+(a_state->damage<<1));
                     break;
                   case ATTACK_AIR_NEUTRAL_RIGHT:
-                    effects[current_effect_index].type=HIT;
-                    effects[current_effect_index].variant=4;
-                    effects[current_effect_index].x=attack_x1+2;
-                    effects[current_effect_index].y=attack_y1;
-                    effects[current_effect_index].isNew=true;
+                    current_effect->type=HIT;
+                    current_effect->variant=4;
+                    current_effect->x=attack_x1+2;
+                    current_effect->y=attack_y1;
+                    current_effect->isNew=true;
                     force_x=80+a_state->damage;
                     force_y=-(10+(a_state->damage<<2));
                     break;
                   case ATTACK_AIR_NEUTRAL_LEFT:
-                    effects[current_effect_index].type=HIT;
-                    effects[current_effect_index].variant=0;
-                    effects[current_effect_index].x=attack_x1-2;
-                    effects[current_effect_index].y=attack_y1;
-                    effects[current_effect_index].isNew=true;
+                    current_effect->type=HIT;
+                    current_effect->variant=0;
+                    current_effect->x=attack_x1-2;
+                    current_effect->y=attack_y1;
+                    current_effect->isNew=true;
                     force_x=-80-a_state->damage;
                     force_y=-(10+(a_state->damage<<2));
                     break;
@@ -1835,12 +1859,17 @@ void main(void) {
                 a_state->damage+=3;
                 a_state->damage_vis_frames+=3;
                 
-                effects[current_effect_index].frames=6;
-                effects[current_effect_index].variant+=i; // Apply player color
+                current_effect->frames=6;
+                current_effect->variant+=i; // Apply player color
                 current_effect_index++;
                 if(current_effect_index==4)
                 {
                   current_effect_index=0;
+                                    current_effect=effects;
+                }
+                else
+                {
+                  current_effect++;
                 }
               }
             }
@@ -2155,48 +2184,63 @@ void main(void) {
         if(actor_speedy[i]>0
           && actor_prev_y[i]>actor_y[i])
         {
-          effects[current_effect_index].type=EXPLOSION_VERTICAL;
-          effects[current_effect_index].variant=4+i; // apply flip and player color
-          effects[current_effect_index].x=actor_x[i];
-          effects[current_effect_index].y=210;
-          effects[current_effect_index].frames=30;
-          effects[current_effect_index].isNew=true;
+          current_effect->type=EXPLOSION_VERTICAL;
+          current_effect->variant=4+i; // apply flip and player color
+          current_effect->x=actor_x[i];
+          current_effect->y=210;
+          current_effect->frames=30;
+          current_effect->isNew=true;
           current_effect_index++;
           if(current_effect_index==4)
           {
             current_effect_index=0;
+            current_effect=effects;
+          }
+          else
+          {
+            current_effect++;
           }
           do_respawn=true;
         }
         else if(actor_speedx[i]>0
           && actor_prev_x[i]>actor_x[i])
         {
-          effects[current_effect_index].type=EXPLOSION_HORIZONTAL;
-          effects[current_effect_index].variant=4+i; // apply flip and player color
-          effects[current_effect_index].x=255-20;
-          effects[current_effect_index].y=actor_y[i]-10;
-          effects[current_effect_index].frames=30;
-          effects[current_effect_index].isNew=true;
+          current_effect->type=EXPLOSION_HORIZONTAL;
+          current_effect->variant=4+i; // apply flip and player color
+          current_effect->x=255-20;
+          current_effect->y=actor_y[i]-10;
+          current_effect->frames=30;
+          current_effect->isNew=true;
           current_effect_index++;
           if(current_effect_index==4)
           {
             current_effect_index=0;
+            current_effect=effects;
+          }
+          else
+          {
+            current_effect++;
           }
           do_respawn=true;
         }
         else if( actor_speedx[i]<0
           && actor_prev_x[i]<actor_x[i])
         {
-          effects[current_effect_index].type=EXPLOSION_HORIZONTAL;
-          effects[current_effect_index].variant=0+i; // apply player color
-          effects[current_effect_index].x=4;
-          effects[current_effect_index].y=actor_y[i];
-          effects[current_effect_index].frames=30;
-          effects[current_effect_index].isNew=true;
+          current_effect->type=EXPLOSION_HORIZONTAL;
+          current_effect->variant=0+i; // apply player color
+          current_effect->x=4;
+          current_effect->y=actor_y[i];
+          current_effect->frames=30;
+          current_effect->isNew=true;
           current_effect_index++;
           if(current_effect_index==4)
           {
             current_effect_index=0;
+            current_effect=effects;
+          }
+          else
+          {
+            current_effect++;
           }
           do_respawn=true;
         }
