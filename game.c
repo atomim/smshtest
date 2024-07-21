@@ -307,7 +307,7 @@ struct state{
   bool fall_through_triggered;
   byte damage_vis_frames;
   bool isAI;
-  bool lives;
+  byte lives;
   byte wins;
 };
 
@@ -974,7 +974,6 @@ void __fastcall__ irq_nmi_callback(void)
 
 }
 
-
 // main function, run after console reset
 void main(void) {
   unsigned char newclock=0;
@@ -1010,24 +1009,24 @@ void main(void) {
 
   initialize_player(0,0,54+10,143);
   actor_state[0].isAI = true;
-  actor_state[0].wins = -1;
+  actor_state[0].wins = 0;
   //initialize_player(0,0,128,99);
   
   #if NUM_ACTORS>1
   initialize_player(1,0,128,99);
   actor_state[1].isAI = true;
-  actor_state[1].wins = -1;
+  actor_state[1].wins = 0;
   #endif
   //for(;;)
   #if NUM_ACTORS>2
-  initialize_player(2,0,128,99);
+  initialize_player(2,0,170,99);
   actor_state[2].isAI = true;
-  actor_state[2].wins = -1;
+  actor_state[2].wins = 0;
   #endif
   #if NUM_ACTORS>3
   initialize_player(3,0,128,99);
   actor_state[3].isAI = true;
-  actor_state[3].wins = -1;
+  actor_state[3].wins = 0;
   #endif
   
   // Draw bg and set platforms data.
@@ -1052,6 +1051,8 @@ void main(void) {
     unsigned char oam_id; // sprite ID
     byte background_color=0x1c;//0x1c;
     bool resetLives=false;
+    byte deadCount=0;
+
     
     APU.pulse[0].control=0xff;
     
@@ -1069,11 +1070,6 @@ void main(void) {
     // Player1Join
     if(!player1joined && pad & PAD_START)
     {
-      //ppu_wait_frame();
-      //ppu_off();
-      //reset_level_and_bg();
-      //ppu_on_all();
-      //ppu_wait_frame();
       demo_mode_on=false;
       actor_state[0].isAI=false;
       actor_state[0].current_action=ACTION_SPAWNING;
@@ -1091,19 +1087,25 @@ void main(void) {
       resetLives=true;
     }
     
+    a_state=actor_state;
+    deadCount = a_state->lives==0;
+    #if NUM_ACTORS>1
+    a_state++;
+    deadCount += a_state->lives==0;
+    #endif
+    #if NUM_ACTORS>2
+    a_state++;
+    deadCount += a_state->lives==0;
+    #endif
+    #if NUM_ACTORS>3
+    a_state++;
+    deadCount += a_state->lives==0;
+    #endif
+      
+    
     // TODO: fix winning of player 3(green)
     // Winning
-    if(((a_state[0].lives==0?1:0)
-       #if NUM_ACTORS>1
-       +(a_state[1].lives==0?1:0)
-       #endif
-       #if NUM_ACTORS>2
-       +(a_state[2].lives==0?1:0)
-       #endif
-       #if NUM_ACTORS>3
-       +(a_state[3].lives==0?1:0)
-       #endif
-       )==NUM_ACTORS-1)
+    if(deadCount==NUM_ACTORS-1)
     {
       if(actor_state[0].lives>0)
       {
@@ -1112,14 +1114,17 @@ void main(void) {
       initialize_player(0,0,54+10,143-20);
       actor_state[0].current_action=ACTION_SPAWNING;
       actor_state[0].current_action_frames=180;
+      
       #if NUM_ACTORS>1
       if(actor_state[1].lives>0)
-        {
+      {
         actor_state[1].wins+=1;
-      }initialize_player(1,0,128,99-20);
+      }
+      initialize_player(1,0,128,99-20);
       actor_state[1].current_action=ACTION_SPAWNING;
       actor_state[1].current_action_frames=180;
       #endif
+      
       #if NUM_ACTORS>2
       if(actor_state[2].lives>0)
       {
@@ -1129,6 +1134,7 @@ void main(void) {
       actor_state[2].current_action=ACTION_SPAWNING;
       actor_state[2].current_action_frames=180;
       #endif
+      
       #if NUM_ACTORS>3
       if(actor_state[3].lives>0)
       {
@@ -1142,6 +1148,7 @@ void main(void) {
       {
         a_state=actor_state;
         update_player_wins(vram_line+5);
+        
         #if NUM_ACTORS >1
         a_state++;
         update_player_wins(vram_line+12);
