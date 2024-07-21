@@ -1812,7 +1812,7 @@ void main(void) {
                 offset_x1 = 8;
                 offset_x2 = 19;
                 // 16 frames. Active on frames 10-7
-                if(attackFrame<=10&&attackFrame>=7)
+                if(attackFrame<=10&&attackFrame>=8)
                 {
                   hitboxActive=true;
                 }
