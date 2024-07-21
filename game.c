@@ -412,6 +412,8 @@ struct state* o_state;
 short int tmp_speed_x_value;
 short int tmp_target_speed_x;
 enum attack_type tmp_attack_type;
+short int attack_force_x;
+short int attack_force_y;
 #pragma bss-name (pop)
 #pragma data-name(pop)
 
@@ -983,6 +985,7 @@ void __fastcall__ irq_nmi_callback(void)
 void main(void) {
   unsigned char newclock=0;
   unsigned char simulate_i=0;
+  struct state* current_simulate_index_state;
   char pad = 0;
   char last_pad = 0;
   char pad_rising = 0;
@@ -995,6 +998,7 @@ void main(void) {
   bool player1joined = false;
   bool player2joined = false;
   register char i;
+  current_simulate_index_state=actor_state;
   
   current_effect=effects;
   
@@ -1369,12 +1373,14 @@ void main(void) {
           if(simulate_i>=NUM_ACTORS-1)
           {
             simulate_i=0;
+            current_simulate_index_state=actor_state;
           }
           else
           {
             simulate_i+=1;
+            current_simulate_index_state++;
           }
-        }while(actor_state[simulate_i].isAI==false);
+        }while(current_simulate_index_state->isAI==false);
         
         simulate_player(simulate_i);
       }
@@ -1521,6 +1527,7 @@ void main(void) {
             }
             a_state->current_attack_frames_left = a_params->attack_neutral_frames;
             cur_action = ACTION_STAND_BY_GROUND;
+            
             APU_PULSE_DECAY(PULSE_CH0, 0x130, 0x0, 0xc1, 0x3);
             APU_PULSE_SWEEP(0, 0, 2, 0x0);
           }
@@ -1763,13 +1770,10 @@ void main(void) {
             byte attack_y2; //lower
             byte attack_x1; //left
             byte attack_x2; //right
-            byte offset_y1;
+            byte offset_y1; //offsets from player coordinate
             byte offset_y2;
             byte offset_x1;
             byte offset_x2;
-            
-            short int force_x;
-            short int force_y;
             
             switch(tmp_attack_type)
             {
@@ -1821,8 +1825,8 @@ void main(void) {
                     current_effect->x=attack_x1+6;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    force_x=40+a_state->damage;
-                    force_y=-(20+(a_state->damage<<1));
+                    attack_force_x=40+a_state->damage;
+                    attack_force_y=-(20+(a_state->damage<<1));
                     break;
                   case ATTACK_NORMAL_LEFT:
                     current_effect->type=HIT;
@@ -1830,8 +1834,8 @@ void main(void) {
                     current_effect->x=attack_x1-6;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    force_x=-40-a_state->damage;
-                    force_y=-(20+(a_state->damage<<1));
+                    attack_force_x=-40-a_state->damage;
+                    attack_force_y=-(20+(a_state->damage<<1));
                     break;
                   case ATTACK_AIR_NEUTRAL_RIGHT:
                     current_effect->type=HIT;
@@ -1839,8 +1843,8 @@ void main(void) {
                     current_effect->x=attack_x1+2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    force_x=80+a_state->damage;
-                    force_y=-(10+(a_state->damage<<2));
+                    attack_force_x=80+a_state->damage;
+                    attack_force_y=-(10+(a_state->damage<<2));
                     break;
                   case ATTACK_AIR_NEUTRAL_LEFT:
                     current_effect->type=HIT;
@@ -1848,14 +1852,14 @@ void main(void) {
                     current_effect->x=attack_x1-2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    force_x=-80-a_state->damage;
-                    force_y=-(10+(a_state->damage<<2));
+                    attack_force_x=-80-a_state->damage;
+                    attack_force_y=-(10+(a_state->damage<<2));
                     break;
                 }
                 
-                actor_speedy[i]=force_y;
+                actor_speedy[i]=attack_force_y;
                 //actor_x[i]=(short int)actor_x[i];
-                actor_speedx[i]+=force_x;
+                actor_speedx[i]+=attack_force_x;
                 a_state->damage+=3;
                 a_state->damage_vis_frames+=3;
                 
@@ -1865,7 +1869,7 @@ void main(void) {
                 if(current_effect_index==4)
                 {
                   current_effect_index=0;
-                                    current_effect=effects;
+                  current_effect=effects;
                 }
                 else
                 {
@@ -1931,6 +1935,10 @@ void main(void) {
         for(j=0;j<p_count;++j) // heavy on air. 2,5 scanlines min, 5.5 max?
         {
           bool skip_due_to_fall_through;
+          byte cur_platform_x1 = cur_platform->x1;
+          byte cur_platform_x2 = cur_platform->x2;
+          byte cur_platform_y1 = cur_platform->y1;
+          byte cur_platform_y2 = cur_platform->y2;
           
           log_collision_calculation(0);
                     
@@ -1940,10 +1948,10 @@ void main(void) {
           
           speed_y_in_pixels=(*a_speed_y>>8);
           on_platform=
-             actor_feet_y>=cur_platform->y1-speed_y_in_pixels
-             && actor_feet_y<=cur_platform->y2
-             && actor_feet_x>cur_platform->x1
-             && actor_feet_x<cur_platform->x2;
+             actor_feet_y>=cur_platform_y1-speed_y_in_pixels
+             && actor_feet_y<=cur_platform_y2
+             && actor_feet_x>cur_platform_x1
+             && actor_feet_x<cur_platform_x2;
           
           // Side collision and grab
           if(!on_platform)
@@ -1955,19 +1963,19 @@ void main(void) {
               byte grab_box_y;
 
               // collision to edge
-              if(actor_y[i]<cur_platform->y2 
-                 && actor_feet_y>cur_platform->y1
+              if(actor_y[i]<cur_platform_y2 
+                 && actor_feet_y>cur_platform_y1
                 )
               {
-                if(actor_feet_x>cur_platform->x1
-                  && actor_feet_x<cur_platform->x1+8)
+                if(actor_feet_x>cur_platform_x1
+                  && actor_feet_x<cur_platform_x1+8)
                 {
-                  actor_x[i]=cur_platform->x1-8;
+                  actor_x[i]=cur_platform_x1-8;
                 } 
-                else if (actor_feet_x<cur_platform->x2
-                         && actor_feet_x>cur_platform->x2-8)
+                else if (actor_feet_x<cur_platform_x2
+                         && actor_feet_x>cur_platform_x2-8)
                 {
-                  actor_x[i]=cur_platform->x2-8;
+                  actor_x[i]=cur_platform_x2-8;
                 }
               }
 
@@ -1978,32 +1986,32 @@ void main(void) {
               grab_box_y=actor_y[i];
 
               if(falling 
-                 && grab_box_y>=cur_platform->y1
-                 && grab_box_y<=cur_platform->y2
+                 && grab_box_y>=cur_platform_y1
+                 && grab_box_y<=cur_platform_y2
                  && !a_intent->jump 
                  && !a_intent->fast_fall 
                  && !a_intent->crouch // drop
                  )
               {
                 if(a_intent->dir!=DIR_LEFT // right+neutral dir
-                   && grab_box_x2>cur_platform->x1
-                   && grab_box_x1<cur_platform->x1
+                   && grab_box_x2>cur_platform_x1
+                   && grab_box_x1<cur_platform_x1
                   )
                 {
                   *a_speed_x=0;*a_speed_y=0;
-                  actor_y[i]=cur_platform->y1;
-                  actor_x[i]=cur_platform->x1-11;
+                  actor_y[i]=cur_platform_y1;
+                  actor_x[i]=cur_platform_x1-11;
                   a_state->current_action = ACTION_HANGING_GROUND;
                   a_state->facing_dir = DIR_RIGHT;
                   on_ground = true;
                 }
                 else if(a_intent->dir!=DIR_RIGHT // left + neutral dir
-                   && grab_box_x1<cur_platform->x2
-                   && grab_box_x2>cur_platform->x2)
+                   && grab_box_x1<cur_platform_x2
+                   && grab_box_x2>cur_platform_x2)
                 {
                   *a_speed_x=0;*a_speed_y=0;
-                  actor_y[i]=cur_platform->y1;
-                  actor_x[i]=cur_platform->x2-5;
+                  actor_y[i]=cur_platform_y1;
+                  actor_x[i]=cur_platform_x2-5;
                   a_state->current_action = ACTION_HANGING_GROUND;
                   a_state->facing_dir = DIR_LEFT;
                   on_ground = true;
@@ -2023,7 +2031,7 @@ void main(void) {
               }
               else
               {
-                actor_y[i] = cur_platform->y1-17;
+                actor_y[i] = cur_platform_y1-17;
                 *a_speed_y = 0;
                 actor_yf[i] = 0;
                 on_ground = true;
@@ -2031,8 +2039,8 @@ void main(void) {
             }
             // todo: split condition to improve perf
             // on_edge state update based on facing dir
-            if(((a_state->facing_dir == DIR_LEFT && actor_feet_x<cur_platform->x1+6) 
-                || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>cur_platform->x2-6))
+            if(((a_state->facing_dir == DIR_LEFT && actor_feet_x<cur_platform_x1+6) 
+                || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>cur_platform_x2-6))
                )
             {
               on_edge=true;
@@ -2375,13 +2383,15 @@ void main(void) {
       // draw and move all actors
       for (i=0; i<NUM_ACTORS; i++) 
       {
-        // TODO: add camera
-        if(a_state[i].lives!=0)
+        // TODO: add camera?
+        if(a_state->lives!=0)
         {
           oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, *a_sprite);
         }
         a_sprite++;
+        a_state++;
       }
+      a_state=actor_state;
       
       a_icon=char1icon_sprites;
       a_iconAI=AIicon_sprites;
