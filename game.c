@@ -411,6 +411,7 @@ struct intent* intentlookup[NUM_ACTORS];
 struct state* o_state;
 short int tmp_speed_x_value;
 short int tmp_target_speed_x;
+short int tmp_speed_y_value;
 enum attack_type tmp_attack_type;
 short int attack_force_x;
 short int attack_force_y;
@@ -1433,6 +1434,7 @@ void main(void) {
         //Speedx value
         tmp_speed_x_value=*a_speed_x;
         tmp_target_speed_x = tmp_speed_x_value;
+        tmp_speed_y_value=*a_speed_y;
 
         if(a_state->current_attack_frames_left>0)
         {
@@ -1453,15 +1455,15 @@ void main(void) {
           // Reset crouch intent on air.
           a_intent->crouch = false;
           // Fall speed
-          *a_speed_y +=a_params->fall_force; 
+          tmp_speed_y_value +=a_params->fall_force; 
 
-          if(a_intent->fast_fall && *a_speed_y>0)
+          if(a_intent->fast_fall && tmp_speed_y_value)
           {
-            *a_speed_y = a_params->fast_fall;
+            tmp_speed_y_value= a_params->fast_fall;
           }
           else
           {
-            *a_speed_y = MIN(*a_speed_y,a_params->fall_limit);
+            tmp_speed_y_value = MIN(tmp_speed_y_value,a_params->fall_limit);
           }
 
           // Air attack
@@ -1487,7 +1489,7 @@ void main(void) {
           {
             if(a_state->double_jumps_left>0)
             {
-              *a_speed_y = -a_params->jump_force; 
+              tmp_speed_y_value = -a_params->jump_force; 
               a_state->double_jumps_left-=1;
             }
             a_intent->jump = false;
@@ -1649,7 +1651,7 @@ void main(void) {
             if (action_frames>=a_params->jump_crouch_frames)
             {
               // Do normal jump
-              *a_speed_y = -a_params->jump_force;
+              tmp_speed_y_value = -a_params->jump_force;
               a_intent->jump = false;
               cur_action = ACTION_STAND_BY_AIR;
               a_state->double_jumps_left=1;
@@ -1659,7 +1661,7 @@ void main(void) {
           // Do short jump when cancelling jump early.
           else if (cur_action==ACTION_CROUCHING_TO_JUMP_GROUND)
           {
-            *a_speed_y = -a_params->short_hop_force;
+            tmp_speed_y_value = -a_params->short_hop_force;
             a_intent->jump = false;
             cur_action = ACTION_STAND_BY_AIR;
             a_state->double_jumps_left=1;
@@ -1688,6 +1690,7 @@ void main(void) {
           tmp_speed_x_value= MIN(tmp_target_speed_x,tmp_speed_x_value);
         }
         *a_speed_x=tmp_speed_x_value;
+        *a_speed_y=tmp_speed_y_value;
 
         a_intent->attack = false;
         a_state->current_action=cur_action;
