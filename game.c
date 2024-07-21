@@ -2298,8 +2298,8 @@ void main(void) {
             }
             else if(current_effect->type == WIN)
             {
-              APU_PULSE_DECAY(PULSE_CH0, 0x4ff, 0x0, 0xc1, 0xF);
-              APU_PULSE_SWEEP(PULSE_CH0, 0X0, 0X2, 0x1);
+              APU_PULSE_DECAY(PULSE_CH1, 0x4ff, 0x0, 0xc1, 0xF);
+              APU_PULSE_SWEEP(PULSE_CH1, 0X0, 0X2, 0x1);
             }
             else
             {
