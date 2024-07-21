@@ -1777,6 +1777,10 @@ void main(void) {
             byte offset_y2;
             byte offset_x1;
             byte offset_x2;
+            byte attackFrame;
+            bool hitboxActive=false;
+            
+            attackFrame=o_state->current_attack_frames_left;
             
             switch(tmp_attack_type)
             {
@@ -1785,25 +1789,52 @@ void main(void) {
                 offset_y2 = 6;
                 offset_x1 = 10;
                 offset_x2 = 18;
+                // 6 frames: active on 4 and 3, counting down.
+                if(attackFrame==4||attackFrame==3)
+                {
+                  hitboxActive=true;
+                }
                 break;
               case ATTACK_NORMAL_LEFT:
                 offset_y1 = 0;
                 offset_y2 = 6;
                 offset_x1 = 256-2;
                 offset_x2 = 6;
+                if(attackFrame==4||attackFrame==3)
+                {
+                  hitboxActive=true;
+                }
+                hitboxActive=true;
                 break;
               case ATTACK_AIR_NEUTRAL_RIGHT:
                 offset_y1 = 6;
                 offset_y2 = 18;
                 offset_x1 = 8;
                 offset_x2 = 19;
+                // 16 frames. Active on frames 10-7
+                if(attackFrame<=10&&attackFrame>=7)
+                {
+                  hitboxActive=true;
+                }
+                hitboxActive=true;
                 break;
               case ATTACK_AIR_NEUTRAL_LEFT:
                 offset_y1 = 6;
                 offset_y2 = 16;
                 offset_x1 = 256-3;
                 offset_x2 = 8;
+                // 16 frames. Active on frames 10-7
+                if(attackFrame<=10&&attackFrame>=7)
+                {
+                  hitboxActive=true;
+                }
                 break;
+            }
+            
+            if(!hitboxActive)
+            {
+              o_state++;
+              continue;
             }
             
             // Attack box y
@@ -1828,8 +1859,9 @@ void main(void) {
                     current_effect->x=attack_x1+6;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=40+a_state->damage;
+                    attack_force_x=20+a_state->damage;
                     attack_force_y=-(20+(a_state->damage<<1));
+                    a_state->damage+=4;
                     break;
                   case ATTACK_NORMAL_LEFT:
                     current_effect->type=HIT;
@@ -1837,8 +1869,9 @@ void main(void) {
                     current_effect->x=attack_x1-6;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=-40-a_state->damage;
+                    attack_force_x=-20-a_state->damage;
                     attack_force_y=-(20+(a_state->damage<<1));
+                    a_state->damage+=4;
                     break;
                   case ATTACK_AIR_NEUTRAL_RIGHT:
                     current_effect->type=HIT;
@@ -1846,8 +1879,9 @@ void main(void) {
                     current_effect->x=attack_x1+2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=80+a_state->damage;
-                    attack_force_y=-(10+(a_state->damage<<2));
+                    attack_force_x=40+a_state->damage;
+                    attack_force_y=-(10+(a_state->damage<<1));
+                    a_state->damage+=3;
                     break;
                   case ATTACK_AIR_NEUTRAL_LEFT:
                     current_effect->type=HIT;
@@ -1855,16 +1889,16 @@ void main(void) {
                     current_effect->x=attack_x1-2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=-80-a_state->damage;
-                    attack_force_y=-(10+(a_state->damage<<2));
+                    attack_force_x=-40-a_state->damage;
+                    attack_force_y=-(10+(a_state->damage<<1));
+                    a_state->damage+=3;
                     break;
                 }
+                a_state->damage_vis_frames+=3;
                 
                 actor_speedy[i]=attack_force_y;
                 //actor_x[i]=(short int)actor_x[i];
                 actor_speedx[i]+=attack_force_x;
-                a_state->damage+=3;
-                a_state->damage_vis_frames+=3;
                 
                 current_effect->frames=6;
                 current_effect->variant+=i; // Apply player color
