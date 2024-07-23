@@ -525,6 +525,10 @@ void reset_level_and_bg()
 void update_player_status(struct vram_inst* inst)
 {
   short int damage = a_state->damage;
+  if(a_state->current_action == ACTION_SPAWNING)
+  {
+    return;
+  }
   // TODO: move to setting damage.
   
   if((damage&0b00001111)>=10)
@@ -1912,6 +1916,8 @@ void main(void) {
                 {
                   current_effect++;
                 }
+                
+                background_color=0x21;
               }
             }
           }
@@ -2300,7 +2306,7 @@ void main(void) {
           actor_speedy[i]=0;
           actor_speedx[i]=0;
           a_state->current_action=ACTION_SPAWNING;
-          a_state->current_action_frames=90;
+          a_state->current_action_frames=180;
           a_state->current_attack=ATTACK_NONE;
           a_state->damage=0;
 
@@ -2435,6 +2441,12 @@ void main(void) {
       for (i=0; i<NUM_ACTORS; i++) 
       {
         const unsigned char* curIcon;
+        if(a_state->current_action==ACTION_SPAWNING
+          && a_state->current_action_frames&0x1)
+        {
+          goto skip_rendering_icon;
+        }
+          
         if(a_state->isAI)
         {
           curIcon=*a_iconAI;
@@ -2463,6 +2475,7 @@ void main(void) {
             oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives4_sprites[i]);
             break;
         }
+        skip_rendering_icon:
         a_icon++;
         a_iconAI++;
         a_state++;
