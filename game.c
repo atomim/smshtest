@@ -1272,8 +1272,10 @@ void main(void) {
     {
       actor_state[0].damage=0;
       actor_state[0].lives=4;
+      #if NUM_ACTORS >1
       actor_state[1].damage=0;
       actor_state[1].lives=4;
+      #endif
       #if NUM_ACTORS >2
       actor_state[2].damage=0;
       actor_state[2].lives=4;
@@ -2441,11 +2443,6 @@ void main(void) {
       for (i=0; i<NUM_ACTORS; i++) 
       {
         const unsigned char* curIcon;
-        if(a_state->current_action==ACTION_SPAWNING
-          && a_state->current_action_frames&0x1)
-        {
-          goto skip_rendering_icon;
-        }
           
         if(a_state->isAI)
         {
@@ -2457,25 +2454,29 @@ void main(void) {
         }
         zp_x=icon_pos_x[i];
         oam_id = oam_meta_spr(zp_x+(a_state->damage_vis_frames>>2), 189-(a_state->damage_vis_frames), oam_id, curIcon);
-        switch(a_state->lives)
+        
+        if(!(a_state->current_action==ACTION_SPAWNING
+          && a_state->current_action_frames&0x1))
         {
-          case 0:
-            oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives0_sprites[i]);
-            break;
-          case 1:
-            oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives1_sprites[i]);
-            break;
-          case 2:
-            oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives2_sprites[i]);
-            break;
-          case 3:
-            oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives3_sprites[i]);
-            break;
-          case 4:
-            oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives4_sprites[i]);
-            break;
+          switch(a_state->lives)
+          {
+            case 0:
+              oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives0_sprites[i]);
+              break;
+            case 1:
+              oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives1_sprites[i]);
+              break;
+            case 2:
+              oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives2_sprites[i]);
+              break;
+            case 3:
+              oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives3_sprites[i]);
+              break;
+            case 4:
+              oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives4_sprites[i]);
+              break;
+          }
         }
-        skip_rendering_icon:
         a_icon++;
         a_iconAI++;
         a_state++;
