@@ -44,6 +44,15 @@ const char PALETTE[33] = {
 
 };
 
+const signed char hit_lag_random_shake[32] = 
+{
+  2,   3, -2,  1,  0, -3, -1, -3, 
+  -1,  1,  2  -2,  0,  2,  0,  2,
+  -3, -1,  2,  3, -2,  3, -2,  0,
+  2,  -3, -1,  1, -1,  1,  3,  -2
+};
+  
+
 //switch this to disable asserts.
 //#define Assert(cond) if(cond)for(;;);
 #define Assert(cond) ;
@@ -2458,7 +2467,14 @@ void main(void) {
         // TODO: add camera?
         if(a_state->lives!=0)
         {
-          oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, *a_sprite);
+          if(a_state->hit_lag_frames_left>0 && a_state->damage_vis_frames>0)
+          {
+            oam_id = oam_meta_spr(actor_x[i]+hit_lag_random_shake[(clock+i)%0x0f], actor_y[i]+hit_lag_random_shake[(clock+13+i)%0x0f], oam_id, *a_sprite);
+          }
+          else
+          {
+            oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, *a_sprite);
+          }
         }
         a_sprite++;
         a_state++;
