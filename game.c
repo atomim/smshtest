@@ -310,6 +310,7 @@ struct state{
   //byte running;
   byte current_action_frames;
   byte current_attack_frames_left;
+  byte hit_lag_frames_left;
   byte double_jumps_left;
   bool on_edge;
   bool fall_through_triggered;
@@ -1216,7 +1217,7 @@ void main(void) {
         initialize_player(2,0,170,99-0);
       }
       actor_state[2].current_action=ACTION_SPAWNING;
-      actor_state[2].current_action_frames=180;
+      actor_state[2].current_action_frames=140;
       #endif
       
       #if NUM_ACTORS>3
@@ -1247,7 +1248,7 @@ void main(void) {
         initialize_player(3,0,140,99-20);
       }
       actor_state[3].current_action=ACTION_SPAWNING;
-      actor_state[3].current_action_frames=180;
+      actor_state[3].current_action_frames=140;
       #endif
       
       {
@@ -1766,13 +1767,14 @@ void main(void) {
       // Process attacks (from others): 3 scanlines
       if(a_state->current_action!=ACTION_SPAWNING)
       {
+        bool isCrouching = a_state->current_action==ACTION_CROUCHING_GROUND;
         unsigned char k;
         for(k = 0; k<NUM_ACTORS;k++) 
         {
           // k is attacking player id
           // i is current player
           log_process_attacks(0);
-          if(k==i) // skip attacking self
+          if(k==i || a_state->hit_lag_frames_left>0 || !o_state->hit_lag_frames_left&0x80) // skip attacking self, or while hit_lagging
           {
             o_state++;
             continue;
@@ -1863,6 +1865,7 @@ void main(void) {
                  && actor_x[i]+4<attack_x2
                 )
               {
+                byte damage;
                 switch(tmp_attack_type)
                 {
                   case ATTACK_NORMAL_RIGHT:
@@ -1871,9 +1874,9 @@ void main(void) {
                     current_effect->x=attack_x1+6;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=20+a_state->damage;
-                    attack_force_y=-(20+(a_state->damage<<1));
-                    a_state->damage+=4;
+                    attack_force_x=20+isCrouching?a_state->damage>>1:a_state->damage;
+                    attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
+                    damage=4;
                     break;
                   case ATTACK_NORMAL_LEFT:
                     current_effect->type=HIT;
@@ -1881,9 +1884,9 @@ void main(void) {
                     current_effect->x=attack_x1-6;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=-20-a_state->damage;
-                    attack_force_y=-(20+(a_state->damage<<1));
-                    a_state->damage+=4;
+                    attack_force_x=-20-(isCrouching?a_state->damage>>1:a_state->damage);
+                    attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
+                    damage=4;
                     break;
                   case ATTACK_AIR_NEUTRAL_RIGHT:
                     current_effect->type=HIT;
@@ -1891,9 +1894,9 @@ void main(void) {
                     current_effect->x=attack_x1+2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=40+a_state->damage;
-                    attack_force_y=-(10+(a_state->damage<<1));
-                    a_state->damage+=3;
+                    attack_force_x=40+isCrouching?a_state->damage>>1:a_state->damage;
+                    attack_force_y=-(10+(isCrouching?a_state->damage:a_state->damage<<1));
+                    damage=3;
                     break;
                   case ATTACK_AIR_NEUTRAL_LEFT:
                     current_effect->type=HIT;
@@ -1901,17 +1904,28 @@ void main(void) {
                     current_effect->x=attack_x1-2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=-40-a_state->damage;
-                    attack_force_y=-(10+(a_state->damage<<1));
-                    a_state->damage+=3;
+                    attack_force_x=-40-isCrouching?a_state->damage>>1:a_state->damage;
+                    attack_force_y=-(10+(isCrouching?a_state->damage:a_state->damage<<1));
+                    damage=3;
                     break;
                 }
+                a_state->damage+=damage;
+                
+                o_state->hit_lag_frames_left=4+0x80; //use highest bit to signify first frame to make it fair.
+                // Crouch cancel
+                if(isCrouching)
+                {
+                  a_state->hit_lag_frames_left=(damage>>1)+0x80; //damage/3+4;
+                }
+                else
+                {
+                  a_state->hit_lag_frames_left=damage+0x80; //damage/3+4;
+                }
                 a_state->damage_vis_frames+=3;
-                
+
                 actor_speedy[i]=attack_force_y;
-                //actor_x[i]=(short int)actor_x[i];
                 actor_speedx[i]+=attack_force_x;
-                
+   
                 current_effect->frames=6;
                 current_effect->variant+=i; // Apply player color
                 current_effect_index++;
@@ -1933,6 +1947,7 @@ void main(void) {
         } 
       }
     
+      
       log_start_physics(0); // (3 scanlines before log_collision_calculation)
       // Actor Physics: around 25 scanlines
       {
@@ -1947,215 +1962,221 @@ void main(void) {
         bool action_on_ground;
 
 
-        actorxf = actor_xf[i]+*a_speed_x;
-        actoryf = actor_yf[i]+*a_speed_y;
-        // TODO: no loops here.
-        while(actorxf>=255)
+        if(a_state->hit_lag_frames_left==0 || a_state->current_action==ACTION_SPAWNING)
         {
-          actor_x[i] +=1;
-          actorxf-=0xff;
-        }
-        while(actorxf<0)
-        {
-          actor_x[i] -=1;
-          actorxf+=0xff;
-        }
-
-        while(actoryf>=255)
-        {
-          actor_y[i] +=1;
-          actoryf-=0xff;
-        }
-        while(actoryf<0)
-        {
-          actor_y[i] -=1;
-          actoryf+=0xff;
-        }
-
-
-        actor_xf[i] = actorxf;
-        actor_yf[i] = actoryf;
-        
-
-        // Collisions and related calculation
-        
-        cur_platform=platforms;
-
-        on_ground = false;
-        on_edge = false;
-        for(j=0;j<p_count;++j) // heavy on air. 2,5 scanlines min, 5.5 max?
-        {
-          bool skip_due_to_fall_through;
-          byte cur_platform_x1 = cur_platform->x1;
-          byte cur_platform_x2 = cur_platform->x2;
-          byte cur_platform_y1 = cur_platform->y1;
-          byte cur_platform_y2 = cur_platform->y2;
-          
-          log_collision_calculation(0);
-                    
-          falling=*a_speed_y >= 0; // may update for each platform
-          actor_feet_x=actor_x[i]+8; // may update for each platform
-          actor_feet_y=actor_y[i]+17; // may update for each platform
-          
-          speed_y_in_pixels=(*a_speed_y>>8);
-          on_platform=
-             actor_feet_y>=cur_platform_y1-speed_y_in_pixels
-             && actor_feet_y<=cur_platform_y2
-             && actor_feet_x>cur_platform_x1
-             && actor_feet_x<cur_platform_x2;
-          
-          // Side collision and grab
-          if(!on_platform)
+          actorxf = actor_xf[i]+*a_speed_x;
+          actoryf = actor_yf[i]+*a_speed_y;
+          // TODO: no loops here.
+          while(actorxf>=255)
           {
-            if(cur_platform->has_edge)
+            actor_x[i] +=1;
+            actorxf-=0xff;
+          }
+          while(actorxf<0)
+          {
+            actor_x[i] -=1;
+            actorxf+=0xff;
+          }
+
+          while(actoryf>=255)
+          {
+            actor_y[i] +=1;
+            actoryf-=0xff;
+          }
+          while(actoryf<0)
+          {
+            actor_y[i] -=1;
+            actoryf+=0xff;
+          }
+
+
+          actor_xf[i] = actorxf;
+          actor_yf[i] = actoryf;
+
+
+          // Collisions and related calculation
+
+          cur_platform=platforms;
+
+          on_ground = false;
+          on_edge = false;
+          for(j=0;j<p_count;++j) // heavy on air. 2,5 scanlines min, 5.5 max?
+          {
+            bool skip_due_to_fall_through;
+            byte cur_platform_x1 = cur_platform->x1;
+            byte cur_platform_x2 = cur_platform->x2;
+            byte cur_platform_y1 = cur_platform->y1;
+            byte cur_platform_y2 = cur_platform->y2;
+
+            log_collision_calculation(0);
+
+            falling=*a_speed_y >= 0; // may update for each platform
+            actor_feet_x=actor_x[i]+8; // may update for each platform
+            actor_feet_y=actor_y[i]+17; // may update for each platform
+
+            speed_y_in_pixels=(*a_speed_y>>8);
+            on_platform=
+               actor_feet_y>=cur_platform_y1-speed_y_in_pixels
+               && actor_feet_y<=cur_platform_y2
+               && actor_feet_x>cur_platform_x1
+               && actor_feet_x<cur_platform_x2;
+
+            // Side collision and grab
+            if(!on_platform)
             {
-              byte grab_box_x1;
-              byte grab_box_x2;
-              byte grab_box_y;
-
-              // collision to edge
-              if(actor_y[i]<cur_platform_y2 
-                 && actor_feet_y>cur_platform_y1
-                )
+              if(cur_platform->has_edge)
               {
-                if(actor_feet_x>cur_platform_x1
-                  && actor_feet_x<cur_platform_x1+8)
-                {
-                  actor_x[i]=cur_platform_x1-8;
-                } 
-                else if (actor_feet_x<cur_platform_x2
-                         && actor_feet_x>cur_platform_x2-8)
-                {
-                  actor_x[i]=cur_platform_x2-8;
-                }
-              }
+                byte grab_box_x1;
+                byte grab_box_x2;
+                byte grab_box_y;
 
-              // grab
-
-              grab_box_x1=actor_feet_x-8; //Todo: precalculate? check close enough first?
-              grab_box_x2=actor_feet_x+8;
-              grab_box_y=actor_y[i];
-
-              if(falling 
-                 && grab_box_y>=cur_platform_y1
-                 && grab_box_y<=cur_platform_y2
-                 && !a_intent->jump 
-                 && !a_intent->fast_fall 
-                 && !a_intent->crouch // drop
-                 )
-              {
-                if(a_intent->dir!=DIR_LEFT // right+neutral dir
-                   && grab_box_x2>cur_platform_x1
-                   && grab_box_x1<cur_platform_x1
+                // collision to edge
+                if(actor_y[i]<cur_platform_y2 
+                   && actor_feet_y>cur_platform_y1
                   )
                 {
-                  *a_speed_x=0;*a_speed_y=0;
-                  actor_y[i]=cur_platform_y1;
-                  actor_x[i]=cur_platform_x1-11;
-                  a_state->current_action = ACTION_HANGING_GROUND;
-                  a_state->facing_dir = DIR_RIGHT;
-                  on_ground = true;
+                  if(actor_feet_x>cur_platform_x1
+                    && actor_feet_x<cur_platform_x1+8)
+                  {
+                    actor_x[i]=cur_platform_x1-8;
+                  } 
+                  else if (actor_feet_x<cur_platform_x2
+                           && actor_feet_x>cur_platform_x2-8)
+                  {
+                    actor_x[i]=cur_platform_x2-8;
+                  }
                 }
-                else if(a_intent->dir!=DIR_RIGHT // left + neutral dir
-                   && grab_box_x1<cur_platform_x2
-                   && grab_box_x2>cur_platform_x2)
+
+                // grab
+
+                grab_box_x1=actor_feet_x-8; //Todo: precalculate? check close enough first?
+                grab_box_x2=actor_feet_x+8;
+                grab_box_y=actor_y[i];
+
+                if(falling 
+                   && grab_box_y>=cur_platform_y1
+                   && grab_box_y<=cur_platform_y2
+                   && !a_intent->jump 
+                   && !a_intent->fast_fall 
+                   && !a_intent->crouch // drop
+                   )
                 {
-                  *a_speed_x=0;*a_speed_y=0;
-                  actor_y[i]=cur_platform_y1;
-                  actor_x[i]=cur_platform_x2-5;
-                  a_state->current_action = ACTION_HANGING_GROUND;
-                  a_state->facing_dir = DIR_LEFT;
-                  on_ground = true;
+                  if(a_intent->dir!=DIR_LEFT // right+neutral dir
+                     && grab_box_x2>cur_platform_x1
+                     && grab_box_x1<cur_platform_x1
+                    )
+                  {
+                    *a_speed_x=0;*a_speed_y=0;
+                    actor_y[i]=cur_platform_y1;
+                    actor_x[i]=cur_platform_x1-11;
+                    a_state->current_action = ACTION_HANGING_GROUND;
+                    a_state->facing_dir = DIR_RIGHT;
+                    on_ground = true;
+                  }
+                  else if(a_intent->dir!=DIR_RIGHT // left + neutral dir
+                     && grab_box_x1<cur_platform_x2
+                     && grab_box_x2>cur_platform_x2)
+                  {
+                    *a_speed_x=0;*a_speed_y=0;
+                    actor_y[i]=cur_platform_y1;
+                    actor_x[i]=cur_platform_x2-5;
+                    a_state->current_action = ACTION_HANGING_GROUND;
+                    a_state->facing_dir = DIR_LEFT;
+                    on_ground = true;
+                  }
                 }
               }
             }
-          }
-          else // on_platform = true
-          {
-            // normal collision
-            if(falling)
+            else // on_platform = true
             {
-              skip_due_to_fall_through=(cur_platform->can_fall_through && (a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered));
-              if(skip_due_to_fall_through)
+              // normal collision
+              if(falling)
               {
-                a_state->fall_through_triggered = true;
+                skip_due_to_fall_through=(cur_platform->can_fall_through && (a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered));
+                if(skip_due_to_fall_through)
+                {
+                  a_state->fall_through_triggered = true;
+                }
+                else
+                {
+                  actor_y[i] = cur_platform_y1-17;
+                  *a_speed_y = 0;
+                  actor_yf[i] = 0;
+                  on_ground = true;
+                }
               }
-              else
+              // todo: split condition to improve perf
+              // on_edge state update based on facing dir
+              if(((a_state->facing_dir == DIR_LEFT && actor_feet_x<cur_platform_x1+6) 
+                  || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>cur_platform_x2-6))
+                 )
               {
-                actor_y[i] = cur_platform_y1-17;
-                *a_speed_y = 0;
-                actor_yf[i] = 0;
-                on_ground = true;
+                on_edge=true;
               }
             }
-            // todo: split condition to improve perf
-            // on_edge state update based on facing dir
-            if(((a_state->facing_dir == DIR_LEFT && actor_feet_x<cur_platform_x1+6) 
-                || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>cur_platform_x2-6))
-               )
+
+            cur_platform++;
+
+          }
+
+          log_state_updates_after_sim(0);
+
+          a_state->on_edge=on_edge;
+
+          if(on_ground)
+          {
+            a_state->fall_through_triggered = false;
+          }
+
+          // Fix action based on physical on_ground state.
+          action_on_ground = ON_GROUND(a_state->current_action);
+          if(!on_ground && action_on_ground) 
+          { // fall off edge
+            a_state->current_action = ACTION_STAND_BY_AIR;
+            a_state->current_action_frames=0;
+            a_state->double_jumps_left=1;
+            action_on_ground=false;
+          }
+          else if(on_ground && !action_on_ground)
+          { // fall on ground
+            a_state->current_action = ACTION_STAND_BY_GROUND;
+            a_state->current_action_frames=0;
+            action_on_ground=true;
+          }
+
+          // Current action may have been invalidated. Set it again.
+          // TODO: Simplify.
+          cur_action=a_state->current_action;
+
+          // Moving left/right
+          a_state->direction_changed = false;
+          if(*a_speed_x>0)
+          {
+            if(a_state->moving_dir == DIR_LEFT)
             {
-              on_edge=true;
+              a_state->direction_changed = true;
             }
+            a_state->moving_dir = DIR_RIGHT;
+            a_state->facing_dir = DIR_RIGHT;
           }
-          
-          cur_platform++;
-          
-        }
-        
-        log_state_updates_after_sim(0);
-        
-        a_state->on_edge=on_edge;
-
-      	if(on_ground)
-        {
-          a_state->fall_through_triggered = false;
-        }
-
-        // Fix action based on physical on_ground state.
-        action_on_ground = ON_GROUND(a_state->current_action);
-        if(!on_ground && action_on_ground) 
-        { // fall off edge
-          a_state->current_action = ACTION_STAND_BY_AIR;
-          a_state->current_action_frames=0;
-          a_state->double_jumps_left=1;
-          action_on_ground=false;
-        }
-        else if(on_ground && !action_on_ground)
-        { // fall on ground
-          a_state->current_action = ACTION_STAND_BY_GROUND;
-          a_state->current_action_frames=0;
-          action_on_ground=true;
-        }
-
-        // Current action may have been invalidated. Set it again.
-        // TODO: Simplify.
-        cur_action=a_state->current_action;
-
-        // Moving left/right
-        a_state->direction_changed = false;
-        if(*a_speed_x>0)
-        {
-          if(a_state->moving_dir == DIR_LEFT)
+          else if(*a_speed_x<0)
           {
-            a_state->direction_changed = true;
+            if(a_state->moving_dir == DIR_RIGHT)
+            {
+              a_state->direction_changed = true;
+            }
+            a_state->moving_dir = DIR_LEFT;
+            a_state->facing_dir = DIR_LEFT;
           }
-          a_state->moving_dir = DIR_RIGHT;
-          a_state->facing_dir = DIR_RIGHT;
-        }
-        else if(*a_speed_x<0)
-        {
-          if(a_state->moving_dir == DIR_RIGHT)
+          else
           {
-            a_state->direction_changed = true;
+            a_state->moving_dir = DIR_NONE;
           }
-          a_state->moving_dir = DIR_LEFT;
-          a_state->facing_dir = DIR_LEFT;
         }
         else
         {
-          a_state->moving_dir = DIR_NONE;
+          a_state->hit_lag_frames_left=(a_state->hit_lag_frames_left&0x7f)-1;
         }
-        
 	log_sprite_selection(0);
         // Select sprite
         // TODO: deduplicate
@@ -2314,7 +2335,7 @@ void main(void) {
           actor_speedy[i]=0;
           actor_speedx[i]=0;
           a_state->current_action=ACTION_SPAWNING;
-          a_state->current_action_frames=180;
+          a_state->current_action_frames=140;
           a_state->current_attack=ATTACK_NONE;
           a_state->damage=0;
 
