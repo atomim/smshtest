@@ -234,7 +234,6 @@ void p(byte type, byte x, byte y, byte len)
   vram_fill(0x05, 1);
   vram_fill(0x09, len-4);
   vram_fill(0x06, 1);
-  
   if(type==0)
   {
     int i;
@@ -247,11 +246,6 @@ void p(byte type, byte x, byte y, byte len)
       vram_adr(NTADR_A(x+pos,y-1));
       vram_fill(0x92+rand()%2, 1);
     }
-    // Ends
-    vram_adr(NTADR_A(x,y));
-    vram_fill(0x90+0x10, 1);
-    vram_adr(NTADR_A(x+len-1,y));
-    vram_fill(0x90+0x11, 1);
   }
 }
 
