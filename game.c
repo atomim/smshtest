@@ -774,7 +774,7 @@ void simulate_player(unsigned char num)
     byte distx;
     byte disty;
     byte dist;
-    if(j==num)
+    if(j==num || a_state->current_action==ACTION_SPAWNING)
     {
       a_state++;
       continue;
@@ -1006,6 +1006,10 @@ void simulate_player(unsigned char num)
       case 23:
       case 24:
       case 25:
+        if(platform_id_under!=-1)
+        {
+          break;
+        }
         a_intent->crouch = false;
         if(actor_x[actor_id_closest]>actor_x[num])
         {
@@ -1033,10 +1037,34 @@ void simulate_player(unsigned char num)
       case 30:
       case 31:
         // Attack if close enough
-        if(abs(actor_x[actor_id_closest]-actor_x[num])<14)
         {
-          a_intent->attack = true;
-          
+          unsigned char xdiff;
+          xdiff=actor_x[actor_id_closest]-actor_x[num]; // positive means right side
+          if(closest_distance<16)
+          {
+            if(a_state->facing_dir==DIR_LEFT)
+            {
+              if(actor_x[actor_id_closest]<actor_x[num]+4){
+                a_intent->attack = true;
+              }
+              else
+              {
+                a_intent->dir=DIR_RIGHT;
+              }
+            }
+            else
+            {
+              if(actor_x[actor_id_closest]>actor_x[num]-4){
+                a_intent->attack = true;
+              }
+              else
+              {
+                a_intent->dir=DIR_LEFT;
+              }
+            }
+            
+
+          }
         }
         break;
     }
