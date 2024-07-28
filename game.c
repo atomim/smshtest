@@ -186,17 +186,15 @@ const unsigned char name[]={\
 // !implement target speed (day 7.5)
 // !optimized text rendering (day 6)
 // !implement air kick (day 8)
-// *implement hitlag 
-// *control hitbox effect during attack(active frames, damage amount) 
-// *advanced knockback calculation https://www.ssbwiki.com/Knockback#Formula
-// *hitstun based on knockback
-// *respawn invincibility
+// !implement hitlag 
+// !control hitbox effect during attack(active frames, damage amount) 
+// !respawn invincibility
 // *fix perf of indexing sprites
 // *clarify states and logic more(enums and masks)
 // *support coordinates outside of screen
 // !KO on arena edges, spawning
 // !counting lives
-// *restart after winning
+// !restart after winning
 // *acceleration per action
 // *dash dancing support
 // *dash attack
@@ -205,7 +203,12 @@ const unsigned char name[]={\
 // *double tap dash
 // /dash attack
 // *more clear attack/animation state
-// *Add a separate state for dead
+// !make AI more aggressive
+// !hitlag shake animation
+// *advanced knockback calculation https://www.ssbwiki.com/Knockback#Formula
+// *hitstun based on knockback
+// *flich animation for hit stun
+// *
 
 
 DEF_METASPRITE_2x2_VARS(AIicon,0xc8);
@@ -227,6 +230,7 @@ DEF_METASPRITE_2x2_VARS(char1dash,0xe8);
 DEF_METASPRITE_2x2_VARS(char1ledge,0xf0);
 DEF_METASPRITE_2x2_VARS(char1sway,0xf4);
 DEF_METASPRITE_2x2_VARS(char1airneutral,0xf8);
+DEF_METASPRITE_2x2_VARS(char1flinch,0xfc);
 
 DEF_METASPRITE_1x1_VARS(small_hit,0x80);
 DEF_METASPRITE_2x2_VARS(horizontal_explosion,0xb0);
@@ -279,11 +283,13 @@ enum action_state
   ACTION_STOPPING_GROUND=9, // todo
   ACTION_FAST_FALLING_AIR=11, 
   ACTION_SPAWNING=11,
+  ACTION_HIT_STUN_AIR=12,
+  ACTION_HIT_STUN_GROUND=13,
 };
 
 unsigned char action_state_to_char[14] = {'S','A','c','C','H','W','R','D','T','s','F'};
 
-#define ON_GROUND(state) (((state)!=ACTION_STAND_BY_AIR)&&((state)!=ACTION_FAST_FALLING_AIR))
+#define ON_GROUND(state) (((state)!=ACTION_STAND_BY_AIR)&&((state)!=ACTION_FAST_FALLING_AIR)&&((state)!=ACTION_HIT_STUN_AIR))
 
 enum dir
 {
@@ -1549,9 +1555,23 @@ void main(void) {
         {
           a_state->damage_vis_frames--;
         }
+        
+        if(!on_ground)
+        {
+          
+        }
 
-
-        if (!on_ground) // on air
+	if(a_state->current_action==ACTION_HIT_STUN_AIR 
+           || a_state->current_action==ACTION_HIT_STUN_GROUND)
+        {
+          if(a_state->current_attack_frames_left==0)
+          {
+            cur_action=ACTION_STAND_BY_GROUND;
+          }
+          a_state->current_attack=ATTACK_NONE;
+          tmp_speed_y_value +=a_params->fall_force; 
+        }
+        else if (!on_ground) // on air
         {
           // Reset crouch intent on air.
           a_intent->crouch = false;
@@ -2006,27 +2026,27 @@ void main(void) {
                 }
                 a_state->damage+=damage;
                 
-                o_state->hit_lag_frames_left=4+0x80; //use highest bit to signify first frame to make it fair.
+                o_state->hit_lag_frames_left=4+0x80; 
                 // Crouch cancel
                 if(isCrouching)
                 {
-                  a_state->hit_lag_frames_left=(damage>>1)+0x80; //damage/3+4;
+                  a_state->hit_lag_frames_left=((1+4)>>1)+0x80; //(damage/3+4)/2, Use highest bit to signify first frame to make it fair.
                 }
                 else
                 {
-                  a_state->hit_lag_frames_left=damage+0x80; //damage/3+4;
+                  a_state->hit_lag_frames_left=(1+4)+0x80; //damage/3+4;
                 }
                 a_state->damage_vis_frames+=3;
 
                 if(isCrouching)
                 {
                   actor_speedy[i]=attack_force_y;
-                  actor_speedx[i]+=attack_force_x<<1;
+                  actor_speedx[i]=attack_force_x<<1;
                 }
                 else
                 {
                   actor_speedy[i]=attack_force_y<<1;
-                  actor_speedx[i]+=attack_force_x<<2;
+                  actor_speedx[i]=attack_force_x<<2;
                 }
    
                 current_effect->frames=6;
@@ -2042,6 +2062,15 @@ void main(void) {
                   current_effect++;
                 }
                 
+                if(on_ground)
+                {
+                  a_state->current_action=ACTION_HIT_STUN_GROUND;
+                }
+                else
+                {
+                  a_state->current_action=ACTION_HIT_STUN_AIR;
+                }
+                a_state->current_attack_frames_left=MIN(100,(abs(attack_force_x)>>2)+4); //reuse attack frame for hit stun.
                 background_color=0x21;
               }
             }
@@ -2339,6 +2368,10 @@ void main(void) {
             {
               *a_sprite = char1dash_sprites[sprite_var];
             }
+            else if(cur_action==ACTION_HIT_STUN_GROUND)
+            {
+              *a_sprite = char1flinch_sprites[sprite_var];
+            }
             else
             {
               // Todo: handle jump crouch as part of animation instead of last case
@@ -2355,6 +2388,10 @@ void main(void) {
             else if(a_intent->fast_fall) // Todo: use state instead of intent.
             {
               *a_sprite = char1fast_fall_sprites[sprite_var];
+            }
+            else if(cur_action==ACTION_HIT_STUN_AIR)
+            {
+              *a_sprite = char1flinch_sprites[sprite_var];
             }
             else
             {
