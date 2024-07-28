@@ -292,6 +292,13 @@ enum dir
   DIR_NONE = 2,
 };
 
+enum vdir
+{
+  VDIR_UP = 0,
+  VDIR_DOWN = 1,
+  VDIR_NONE = 2,
+};
+
 unsigned char dir_to_char[3] = {'L','R','.'};
 
 enum attack_type
@@ -332,6 +339,7 @@ struct state{
 
 struct intent{
   enum dir dir;
+  enum vdir vdir;
   bool jump;
 
   bool crouch;
@@ -712,9 +720,11 @@ void simulate_player(unsigned char num)
 {
   // TODO: optimize perf
   unsigned int r = rand();
-  signed char id_under =-1;
-  signed char id_right=-1;
-  signed char id_left=-1;
+  signed char platform_id_under =-1;
+  signed char platform_id_right=-1;
+  signed char platform_id_left=-1;
+  signed char actor_id_closest;
+  byte closest_distance=255;
   
   
   unsigned char r128;
@@ -751,6 +761,31 @@ void simulate_player(unsigned char num)
     r128 = r&0x1f;
   }
   
+  // Closest actors
+  a_state=actor_state;
+  for(j=0;j<NUM_ACTORS;++j)
+  {
+    byte distx;
+    byte disty;
+    byte dist;
+    if(j==num)
+    {
+      a_state++;
+      continue;
+    }
+    distx=abs(actor_x[j]-actor_x[num]);
+    disty=abs(actor_x[j]-actor_x[num]);
+    dist=MAX(distx,disty);
+    if(dist<closest_distance)
+    {
+      
+      actor_id_closest=j;
+      closest_distance=distx;
+    }
+    
+    a_state++;
+  }
+  
   //unsigned char closest_platform = 0;
   // find closest platforms for AI
   cur_platform=platforms;
@@ -765,7 +800,7 @@ void simulate_player(unsigned char num)
       isUnder=actor_y[num]+17>=cur_platform->y1;
       if(isUnder)
       {
-        id_under=j;
+        platform_id_under=j;
         //todo: make sure it is closest under
       }
       else
@@ -777,7 +812,7 @@ void simulate_player(unsigned char num)
     {
       if(isLeft)
       {
-        id_left=j;
+        platform_id_left=j;
         //todo: make sure it is closest
       }
       else
@@ -787,7 +822,7 @@ void simulate_player(unsigned char num)
       }
       if(isRight)
       {
-        id_right=j;
+        platform_id_right=j;
         //todo: make sure it is closest
       }
       else
@@ -916,8 +951,11 @@ void simulate_player(unsigned char num)
         a_intent->crouch = false;
         break;
       case 7: // Fast fall / crouch;
-        a_intent->fast_fall = true;
-        a_intent->crouch = true;
+        if(actor_y[actor_id_closest]>actor_y[num]+2)
+        {
+          a_intent->fast_fall = true;
+          a_intent->crouch = true;
+        }
         break;
       case 8:
       case 9: // crouch still
@@ -930,20 +968,22 @@ void simulate_player(unsigned char num)
         break;
       case 11:
       case 12:
-        a_intent->attack = true;
-        break;
+        //a_intent->attack = true;
+        //break;
       case 13:
       case 14:
       case 15:
       case 16:
       case 17: // save when falling off. cost: 3 scanlines.
-        if(id_under==-1)
+      case 18:
+      case 19:
+        if(platform_id_under==-1)
         {
-          if(id_left!=-1)
+          if(platform_id_left!=-1)
           {
             a_intent->dir = DIR_LEFT;
           }
-          if(id_right!=-1)
+          if(platform_id_right!=-1)
           {
             a_intent->dir = DIR_RIGHT;
           }
@@ -952,6 +992,45 @@ void simulate_player(unsigned char num)
           {
             a_intent->jump=true;
           }
+        }
+        break;
+      case 20:
+      case 21:// Approach closest player
+      case 22:
+      case 23:
+      case 24:
+      case 25:
+        a_intent->crouch = false;
+        if(actor_x[actor_id_closest]>actor_x[num])
+        {
+          a_intent->dir = DIR_RIGHT;
+        }
+        else
+        {
+          a_intent->dir = DIR_LEFT;
+        }
+        if(actor_y[actor_id_closest]<actor_y[num])
+        {
+          a_intent->jump=true;
+          a_intent->fast_fall=false;
+        }
+        else
+        {
+          a_intent->jump=false;
+          a_intent->fast_fall=true;
+        }
+        break;
+      case 26:
+      case 27:
+      case 28:
+      case 29:
+      case 30:
+      case 31:
+        // Attack if close enough
+        if(abs(actor_x[actor_id_closest]-actor_x[num])<14)
+        {
+          a_intent->attack = true;
+          
         }
         break;
     }
@@ -1700,19 +1779,22 @@ void main(void) {
           tmp_target_speed_x = 0;
         }
 
-        // Interpolate toward target speed.
-        if(tmp_speed_x_value>tmp_target_speed_x)
+        if(a_state->hit_lag_frames_left<=1)
         {
-          tmp_speed_x_value= tmp_speed_x_value-20;
-          tmp_speed_x_value= MAX(tmp_target_speed_x,tmp_speed_x_value);
+          // Interpolate toward target speed.
+          if(tmp_speed_x_value>tmp_target_speed_x)
+          {
+            tmp_speed_x_value= tmp_speed_x_value-20;
+            tmp_speed_x_value= MAX(tmp_target_speed_x,tmp_speed_x_value);
+          }
+          else if(tmp_speed_x_value<tmp_target_speed_x)
+          {
+            tmp_speed_x_value= tmp_speed_x_value+20;
+            tmp_speed_x_value= MIN(tmp_target_speed_x,tmp_speed_x_value);
+          }
+          *a_speed_x=tmp_speed_x_value;
+          *a_speed_y=tmp_speed_y_value;
         }
-        else if(tmp_speed_x_value<tmp_target_speed_x)
-        {
-          tmp_speed_x_value= tmp_speed_x_value+20;
-          tmp_speed_x_value= MIN(tmp_target_speed_x,tmp_speed_x_value);
-        }
-        *a_speed_x=tmp_speed_x_value;
-        *a_speed_y=tmp_speed_y_value;
 
         a_intent->attack = false;
         a_state->current_action=cur_action;
@@ -1883,8 +1965,10 @@ void main(void) {
                     current_effect->x=attack_x1+6;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=20+isCrouching?a_state->damage>>1:a_state->damage;
-                    attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
+                    //attack_force_x=20+isCrouching?a_state->damage>>1:a_state->damage;
+                    //attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
+                    attack_force_x=20+a_state->damage;
+                    attack_force_y=-(20+a_state->damage<<1);
                     damage=4;
                     break;
                   case ATTACK_NORMAL_LEFT:
@@ -1893,8 +1977,10 @@ void main(void) {
                     current_effect->x=attack_x1-6;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=-20-(isCrouching?a_state->damage>>1:a_state->damage);
-                    attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
+                    //attack_force_x=-20-(isCrouching?a_state->damage>>1:a_state->damage);
+                    //attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
+                    attack_force_x=-20-a_state->damage;
+                    attack_force_y=-(20+a_state->damage<<1);
                     damage=4;
                     break;
                   case ATTACK_AIR_NEUTRAL_RIGHT:
@@ -1903,8 +1989,8 @@ void main(void) {
                     current_effect->x=attack_x1+2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=40+isCrouching?a_state->damage>>1:a_state->damage;
-                    attack_force_y=-(10+(isCrouching?a_state->damage:a_state->damage<<1));
+                    attack_force_x=40+a_state->damage;
+                    attack_force_y=-(10+a_state->damage<<1);
                     damage=3;
                     break;
                   case ATTACK_AIR_NEUTRAL_LEFT:
@@ -1913,8 +1999,8 @@ void main(void) {
                     current_effect->x=attack_x1-2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=-40-isCrouching?a_state->damage>>1:a_state->damage;
-                    attack_force_y=-(10+(isCrouching?a_state->damage:a_state->damage<<1));
+                    attack_force_x=-40-a_state->damage;
+                    attack_force_y=-(10+a_state->damage<<1);
                     damage=3;
                     break;
                 }
@@ -1932,8 +2018,16 @@ void main(void) {
                 }
                 a_state->damage_vis_frames+=3;
 
-                actor_speedy[i]=attack_force_y;
-                actor_speedx[i]+=attack_force_x;
+                if(isCrouching)
+                {
+                  actor_speedy[i]=attack_force_y;
+                  actor_speedx[i]+=attack_force_x<<1;
+                }
+                else
+                {
+                  actor_speedy[i]=attack_force_y<<1;
+                  actor_speedx[i]+=attack_force_x<<2;
+                }
    
                 current_effect->frames=6;
                 current_effect->variant+=i; // Apply player color
@@ -2186,6 +2280,7 @@ void main(void) {
         {
           a_state->hit_lag_frames_left=(a_state->hit_lag_frames_left&0x7f)-1;
         }
+        
 	log_sprite_selection(0);
         // Select sprite
         // TODO: deduplicate
@@ -2469,7 +2564,7 @@ void main(void) {
         {
           if(a_state->hit_lag_frames_left>0 && a_state->damage_vis_frames>0)
           {
-            oam_id = oam_meta_spr(actor_x[i]+hit_lag_random_shake[(clock+i)%0x0f], actor_y[i]+hit_lag_random_shake[(clock+13+i)%0x0f], oam_id, *a_sprite);
+            oam_id = oam_meta_spr(actor_x[i]+hit_lag_random_shake[(clock+i<<2)%0x0f], actor_y[i]+hit_lag_random_shake[(clock+13+i<<2)%0x0f], oam_id, *a_sprite);
           }
           else
           {
