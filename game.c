@@ -1128,9 +1128,16 @@ void main(void) {
   char last_pad2 = 0;
   char pad_rising2 = 0;
   char pad_falling2 =0;
+  char pad3 = 0;
+  char last_pad3 = 0;
+  char pad_rising3 = 0;
+  char pad_falling3 =0;
+
   bool demo_mode_on = true;
   bool player1joined = false;
   bool player2joined = false;
+  bool player3joined = false;
+  
   register char i;
   current_simulate_index_state=actor_state;
   
@@ -1212,6 +1219,12 @@ void main(void) {
     pad_rising2 = pad2^last_pad2&pad2;
     pad_falling2 = pad2^last_pad2&last_pad2;
     
+    last_pad3 = pad3;
+    pad3 = pad_poll(2);
+    pad_rising3 = pad3^last_pad3&pad3;
+    pad_falling3 = pad3^last_pad3&last_pad3;
+    
+    
     // Player1Join
     if(!player1joined && pad & PAD_START)
     {
@@ -1229,6 +1242,15 @@ void main(void) {
       actor_state[1].isAI=false;
       actor_state[1].current_action=ACTION_SPAWNING;
       player2joined=true;
+      resetLives=true;
+    }
+    
+    if(!player3joined && pad3 & PAD_START)
+    {
+      demo_mode_on=false;
+      actor_state[2].isAI=false;
+      actor_state[2].current_action=ACTION_SPAWNING;
+      player3joined=true;
       resetLives=true;
     }
     
@@ -1481,7 +1503,7 @@ void main(void) {
         {
           actor_intent[1].jump = true;
         }
-        if((pad2 & PAD_A )==false && actor_intent[0].jump==true)
+        if((pad2 & PAD_A )==false && actor_intent[1].jump==true)
         {
           actor_intent[1].jump = false;
         }
@@ -1499,6 +1521,47 @@ void main(void) {
         if(pad_rising2 & PAD_B)
         {
           actor_intent[1].attack = true;
+        }
+      }
+      
+      if(player3joined)
+      {
+        if(pad3 & PAD_LEFT && !(pad3 & PAD_RIGHT))
+        {
+            actor_intent[2].dir = DIR_LEFT;
+        }
+        else if(pad3 & PAD_RIGHT)
+        {
+            actor_intent[2].dir = DIR_RIGHT;
+        }
+        else
+        {
+          actor_intent[2].dir = DIR_NONE;
+        }
+
+        // Jump / cancel jump when state changes. Let simulation update consume intent in between.
+        if(pad_rising3 & PAD_A)
+        {
+          actor_intent[2].jump = true;
+        }
+        if((pad3 & PAD_A )==false && actor_intent[2].jump==true)
+        {
+          actor_intent[2].jump = false;
+        }
+
+        actor_intent[2].fast_fall = pad3 & PAD_DOWN?true:false;
+        if(pad_rising3 & PAD_DOWN)
+        {
+          actor_intent[2].crouch = true;
+        }
+        else if (pad_falling3 & PAD_DOWN)
+        {
+          actor_intent[2].crouch = false;
+        }
+
+        if(pad_rising3 & PAD_B)
+        {
+          actor_intent[2].attack = true;
         }
       }
 
