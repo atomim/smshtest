@@ -964,9 +964,23 @@ void simulate_player(unsigned char num)
         }
         break;
       case 8:
-      case 9: // crouch still
-        a_intent->crouch = true;
-        a_intent->dir = DIR_NONE;
+      case 9: // crouch still or go toward center
+        if(128-32<actor_x[num]&&actor_x[num]<128+32)
+        {
+          a_intent->crouch = true;
+          a_intent->dir = DIR_NONE;
+        }
+        else
+        {
+          if(actor_x[num]>128)
+          {
+           a_intent->dir = DIR_LEFT; 
+          }
+          else
+          {
+            a_intent->dir = DIR_RIGHT;
+          }
+        }
         break;
       case 10: // Cancel Fast fall / crouch
         a_intent->fast_fall = false;
@@ -1006,7 +1020,7 @@ void simulate_player(unsigned char num)
       case 23:
       case 24:
       case 25:
-        if(platform_id_under!=-1)
+        if(platform_id_under==-1)
         {
           break;
         }
@@ -1128,15 +1142,16 @@ void main(void) {
   char last_pad2 = 0;
   char pad_rising2 = 0;
   char pad_falling2 =0;
-  char pad3 = 0;
+  /*char pad3 = 0;
   char last_pad3 = 0;
   char pad_rising3 = 0;
   char pad_falling3 =0;
+  */
 
   bool demo_mode_on = true;
   bool player1joined = false;
   bool player2joined = false;
-  bool player3joined = false;
+  //bool player3joined = false;
   
   register char i;
   current_simulate_index_state=actor_state;
@@ -1219,10 +1234,10 @@ void main(void) {
     pad_rising2 = pad2^last_pad2&pad2;
     pad_falling2 = pad2^last_pad2&last_pad2;
     
-    last_pad3 = pad3;
-    pad3 = pad_poll(2);
-    pad_rising3 = pad3^last_pad3&pad3;
-    pad_falling3 = pad3^last_pad3&last_pad3;
+    //last_pad3 = pad3;
+    //pad3 = pad_poll(2);
+    //pad_rising3 = pad3^last_pad3&pad3;
+    //pad_falling3 = pad3^last_pad3&last_pad3;
     
     
     // Player1Join
@@ -1245,7 +1260,7 @@ void main(void) {
       resetLives=true;
     }
     
-    if(!player3joined && pad3 & PAD_START)
+    /*if(!player3joined && pad3 & PAD_START)
     {
       demo_mode_on=false;
       actor_state[2].isAI=false;
@@ -1253,6 +1268,7 @@ void main(void) {
       player3joined=true;
       resetLives=true;
     }
+    */
     
     a_state=actor_state;
     deadCount = a_state->lives==0;
@@ -1524,7 +1540,7 @@ void main(void) {
         }
       }
       
-      if(player3joined)
+      /*if(player3joined)
       {
         if(pad3 & PAD_LEFT && !(pad3 & PAD_RIGHT))
         {
@@ -1564,6 +1580,7 @@ void main(void) {
           actor_intent[2].attack = true;
         }
       }
+      */
 
       if(num_ai>0)
       {
