@@ -945,6 +945,10 @@ void simulate_player(unsigned char num)
         a_intent->jump = false;
         break;
       case 4: // Stop
+        if(platform_id_under==-1)
+        {
+          break;
+        }
         a_intent->dir = DIR_NONE;
         a_intent->crouch = false;
         break;
@@ -1076,9 +1080,12 @@ void simulate_player(unsigned char num)
                 a_intent->dir=DIR_LEFT;
               }
             }
-            
-
+            if(r128&0x01)
+            {
+              a_intent->dir=DIR_NONE;
+            }
           }
+          
         }
         break;
     }
