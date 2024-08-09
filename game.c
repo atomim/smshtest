@@ -2,6 +2,7 @@
 Setting th e attribute table, which controls palette selection
 for the nametable. We copy it from an array in ROM to video RAM.
 */
+
 #include "neslib.h"
 #include <string.h>
 #include <stdlib.h>
@@ -275,7 +276,7 @@ enum action_state
   ACTION_STAND_BY_AIR=1,
   ACTION_CROUCHING_TO_JUMP_GROUND=2,
   ACTION_CROUCHING_GROUND=3,
-  ACTION_HANGING_GROUND=4, //todo
+  ACTION_HANGING_GROUND=4,
   ACTION_WALKING_GROUND=5,
   ACTION_RUNNING_GROUND=6,
   ACTION_DASHING_GROUND=7, // Todo: Refactor to "Animated attack"
@@ -287,7 +288,7 @@ enum action_state
   ACTION_HIT_STUN_GROUND=13,
 };
 
-unsigned char action_state_to_char[14] = {'S','A','c','C','H','W','R','D','T','s','F'};
+unsigned char action_state_to_char[14] = {'G','A','c','C','H','W','R','D',' ',' ','F','!','x','X'};
 
 #define ON_GROUND(state) (((state)!=ACTION_STAND_BY_AIR)&&((state)!=ACTION_FAST_FALLING_AIR)&&((state)!=ACTION_HIT_STUN_AIR))
 
@@ -356,20 +357,20 @@ struct intent{
 
 
 struct params{
-  short int jump_force;
-  short int short_hop_force;
-  short int walk_speed;
-  short int run_speed;
-  short int dash_speed;
+  short unsigned int jump_force;
+  short unsigned int short_hop_force;
+  short unsigned int walk_speed;
+  short unsigned int run_speed;
+  short unsigned int dash_speed;
   byte dash_frames;
   byte frames_to_run;
   byte double_jumps;
   byte jump_crouch_frames;
   byte attack_neutral_frames;
   byte attack_air_neutral_frames;
-  short int fall_force;
-  short int fall_limit;
-  short int fast_fall;
+  short unsigned int fall_force;
+  short unsigned int fall_limit;
+  short unsigned int fast_fall;
 };
 
 struct platform{
@@ -445,6 +446,7 @@ short int tmp_speed_y_value;
 enum attack_type tmp_attack_type;
 short int attack_force_x;
 short int attack_force_y;
+unsigned char i,j,k;
 #pragma bss-name (pop)
 #pragma data-name(pop)
 
@@ -660,6 +662,58 @@ void update_debug_info(byte player,struct vram_inst* inst)
   
 }
 
+void update_debug_info2(byte player,struct vram_inst* inst)
+{
+  enum action_state cur_action=a_state->current_action;
+
+  inst->_1_lda_val = action_state_to_char[cur_action];
+  inst++;
+  
+  //inst->_1_lda_val = 0x30+cur_action;
+  //inst++;
+  inst->_1_lda_val = 0x30+a_state->hit_lag_frames_left;
+  inst++;
+  inst->_1_lda_val = 0x30+a_state->current_attack_frames_left;
+  inst++;
+  
+  a_intent=&actor_intent[player];//dummy
+  
+  //inst->_1_lda_val = dir_to_char[a_intent->dir];
+  //inst++;
+  /*
+  if(a_intent->jump)
+  {
+    inst->_1_lda_val = 'J';
+  }
+  else
+  {
+    inst->_1_lda_val = '.';
+  }
+  inst++;
+  
+  if(a_intent->crouch)
+  {
+    inst->_1_lda_val = 'C';
+  }
+  else
+  {
+    inst->_1_lda_val = '.';
+  }
+  inst++;
+  
+  if(a_intent->fast_fall)
+  {
+    inst->_1_lda_val = 'F';
+  }
+  else
+  {
+    inst->_1_lda_val = '.';
+  }*/
+  
+}
+
+
+
 #pragma warn (unused-param, push, off)
 #if 1
 #define log_state_update(a) ;
@@ -720,21 +774,20 @@ void log_end_physics(byte dummy)
 #endif
 #pragma warn(unused-param,pop)
 
-char num_ai;
+unsigned char num_ai;
 
 void simulate_player(unsigned char num)
 {
   // TODO: optimize perf
   unsigned int r = rand();
-  signed char platform_id_under =-1;
-  signed char platform_id_right=-1;
-  signed char platform_id_left=-1;
-  signed char actor_id_closest;
+  unsigned char platform_id_under =255;
+  unsigned char platform_id_right=255;
+  unsigned char platform_id_left=255;
+  unsigned char actor_id_closest=255;
   byte closest_distance=255;
   
   
   unsigned char r128;
-  unsigned char j;
 
   Assert(num>NUM_ACTORS);
 
@@ -945,7 +998,7 @@ void simulate_player(unsigned char num)
         a_intent->jump = false;
         break;
       case 4: // Stop
-        if(platform_id_under==-1)
+        if(platform_id_under==255)
         {
           break;
         }
@@ -1001,13 +1054,13 @@ void simulate_player(unsigned char num)
       case 17: // save when falling off. cost: 3 scanlines.
       case 18:
       case 19:
-        if(platform_id_under==-1)
+        if(platform_id_under==255)
         {
-          if(platform_id_left!=-1)
+          if(platform_id_left!=255)
           {
             a_intent->dir = DIR_LEFT;
           }
-          if(platform_id_right!=-1)
+          if(platform_id_right!=255)
           {
             a_intent->dir = DIR_RIGHT;
           }
@@ -1024,7 +1077,7 @@ void simulate_player(unsigned char num)
       case 23:
       case 24:
       case 25:
-        if(platform_id_under==-1)
+        if(platform_id_under==255)
         {
           break;
         }
@@ -1141,14 +1194,14 @@ void main(void) {
   unsigned char newclock=0;
   unsigned char simulate_i=0;
   struct state* current_simulate_index_state;
-  char pad = 0;
-  char last_pad = 0;
-  char pad_rising = 0;
-  char pad_falling =0;
-  char pad2 = 0;
-  char last_pad2 = 0;
-  char pad_rising2 = 0;
-  char pad_falling2 =0;
+  unsigned char pad = 0;
+  unsigned char last_pad = 0;
+  unsigned char pad_rising = 0;
+  unsigned char pad_falling =0;
+  unsigned char pad2 = 0;
+  unsigned char last_pad2 = 0;
+  unsigned char pad_rising2 = 0;
+  unsigned char pad_falling2 =0;
   /*char pad3 = 0;
   char last_pad3 = 0;
   char pad_rising3 = 0;
@@ -1160,7 +1213,7 @@ void main(void) {
   bool player2joined = false;
   //bool player3joined = false;
   
-  register char i;
+  register unsigned char i;
   current_simulate_index_state=actor_state;
   
   current_effect=effects;
@@ -1221,7 +1274,6 @@ void main(void) {
   // MAIN LOOP
   //
   while (1) {
-    unsigned char i, j; // actor index
     unsigned char oam_id; // sprite ID
     byte background_color=0x1c;//0x1c;
     bool resetLives=false;
@@ -1994,7 +2046,6 @@ void main(void) {
       if(a_state->current_action!=ACTION_SPAWNING)
       {
         bool isCrouching = a_state->current_action==ACTION_CROUCHING_GROUND;
-        unsigned char k;
         for(k = 0; k<NUM_ACTORS;k++) 
         {
           // k is attacking player id
@@ -2517,8 +2568,8 @@ void main(void) {
       }
       {
         bool do_respawn=false;
-        if(actor_speedy[i]>0
-          && actor_prev_y[i]>actor_y[i])
+        if(actor_prev_y[i]>actor_y[i]
+           && actor_speedy[i]>0)
         {
           current_effect->type=EXPLOSION_VERTICAL;
           current_effect->variant=4+i; // apply flip and player color
@@ -2538,8 +2589,8 @@ void main(void) {
           }
           do_respawn=true;
         }
-        else if(actor_speedx[i]>0
-          && actor_prev_x[i]>actor_x[i])
+        else if(actor_prev_x[i]>actor_x[i]
+                && actor_speedx[i]>0)
         {
           current_effect->type=EXPLOSION_HORIZONTAL;
           current_effect->variant=4+i; // apply flip and player color
@@ -2559,8 +2610,8 @@ void main(void) {
           }
           do_respawn=true;
         }
-        else if( actor_speedx[i]<0
-          && actor_prev_x[i]<actor_x[i])
+        else if( actor_prev_x[i]<actor_x[i]
+                && actor_speedx[i]<0)
         {
           current_effect->type=EXPLOSION_HORIZONTAL;
           current_effect->variant=0+i; // apply player color
@@ -2613,7 +2664,7 @@ void main(void) {
     oam_id = 0;
     // Update Effect Sprites
     {
-      struct effect* current_effect;
+      register struct effect* current_effect;
       current_effect=effects;
       for (i=0; i<4; i++)
       {
@@ -2716,7 +2767,7 @@ void main(void) {
         {
           if(a_state->hit_lag_frames_left>0 && a_state->damage_vis_frames>0)
           {
-            oam_id = oam_meta_spr(actor_x[i]+hit_lag_random_shake[(clock+i<<2)%0x0f], actor_y[i]+hit_lag_random_shake[(clock+13+i<<2)%0x0f], oam_id, *a_sprite);
+            oam_id = oam_meta_spr(actor_x[i]+hit_lag_random_shake[(clock+i<<2)&0x0f], actor_y[i]+hit_lag_random_shake[(clock+13+i<<2)&0x0f], oam_id, *a_sprite);
           }
           else
           {
@@ -2778,24 +2829,24 @@ void main(void) {
     
     {
       a_state=actor_state;
-      //update_debug_info(0,vram_line);
+      update_debug_info2(0,vram_line);
       update_player_status(vram_line2+4);
 
       #if NUM_ACTORS >1
       a_state++;
-      //update_debug_info(1,vram_line+8);
+      update_debug_info2(1,vram_line+7);
       update_player_status(vram_line2+11);
       #endif
 
       #if NUM_ACTORS >2
       a_state++;
-      //update_debug_info(2,vram_line+16);
+      update_debug_info2(2,vram_line+14);
       update_player_status(vram_line2+18);
       #endif
 
       #if NUM_ACTORS >3
       a_state++;
-      //update_debug_info(3,vram_line+24);
+      //update_debug_info(3,vram_line+23);
       update_player_status(vram_line2+25);
       #endif
     }
