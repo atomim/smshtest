@@ -447,6 +447,7 @@ enum attack_type tmp_attack_type;
 short int attack_force_x;
 short int attack_force_y;
 unsigned char i,j,k;
+signed char scroll_nudge_x;
 #pragma bss-name (pop)
 #pragma data-name(pop)
 
@@ -1165,8 +1166,8 @@ void initialize_player(byte num, byte type, byte x, byte y)
       actor_params[num].dash_frames = 15;       // Z (M)
       actor_params[num].double_jumps = 1;       // 1 (All)
       actor_params[num].jump_crouch_frames = 6; // 6 (M)
-      actor_params[num].attack_neutral_frames = 6; // try something
-      actor_params[num].attack_air_neutral_frames = 16; // try something
+      actor_params[num].attack_neutral_frames = 12; // try something
+      actor_params[num].attack_air_neutral_frames = 18; // try something
       actor_params[num].fall_force = 22;        // 0.11 (M, Grav)
       actor_params[num].fall_limit = 436;       // 2.13 (M)
       actor_params[num].fast_fall = 614;        // 3 (M)
@@ -1278,6 +1279,7 @@ void main(void) {
     byte background_color=0x1c;//0x1c;
     bool resetLives=false;
     byte deadCount=0;
+    scroll_nudge_x=0; //todo: move out of zp
 
     
     APU.pulse[0].control=0xff;
@@ -2095,19 +2097,19 @@ void main(void) {
                 {
                   hitboxActive=true;
                 }
-                hitboxActive=true;
+                //hitboxActive=true;
                 break;
               case ATTACK_AIR_NEUTRAL_RIGHT:
                 offset_y1 = 6;
                 offset_y2 = 18;
                 offset_x1 = 8;
                 offset_x2 = 19;
-                // 16 frames. Active on frames 10-7
+                // 12 frames. Active on frames 10-8
                 if(attackFrame<=10&&attackFrame>=8)
                 {
                   hitboxActive=true;
                 }
-                hitboxActive=true;
+                //hitboxActive=true;
                 break;
               case ATTACK_AIR_NEUTRAL_LEFT:
                 offset_y1 = 6;
@@ -2155,7 +2157,8 @@ void main(void) {
                     //attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
                     attack_force_x=20+a_state->damage;
                     attack_force_y=-(20+a_state->damage<<1);
-                    damage=4;
+                    scroll_nudge_x+=1;
+                    damage=5;
                     break;
                   case ATTACK_NORMAL_LEFT:
                     current_effect->type=HIT;
@@ -2167,7 +2170,8 @@ void main(void) {
                     //attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
                     attack_force_x=-20-a_state->damage;
                     attack_force_y=-(20+a_state->damage<<1);
-                    damage=4;
+                    scroll_nudge_x-=1;
+                    damage=5;
                     break;
                   case ATTACK_AIR_NEUTRAL_RIGHT:
                     current_effect->type=HIT;
@@ -2178,6 +2182,7 @@ void main(void) {
                     attack_force_x=40+a_state->damage;
                     attack_force_y=-(10+a_state->damage<<1);
                     damage=3;
+                    scroll_nudge_x+=1;
                     break;
                   case ATTACK_AIR_NEUTRAL_LEFT:
                     current_effect->type=HIT;
@@ -2187,6 +2192,7 @@ void main(void) {
                     current_effect->isNew=true;
                     attack_force_x=-40-a_state->damage;
                     attack_force_y=-(10+a_state->damage<<1);
+                    scroll_nudge_x-=1;
                     damage=3;
                     break;
                 }
@@ -2237,7 +2243,22 @@ void main(void) {
                   a_state->current_action=ACTION_HIT_STUN_AIR;
                 }
                 a_state->current_attack_frames_left=MIN(100,(abs(attack_force_x)>>2)+4); //reuse attack frame for hit stun.
-                background_color=0x21;
+                switch(i)
+                {
+                  case 3:
+                    background_color=0x16;
+                    break;
+                  case 2:
+                    background_color=0x1a;
+                    break;
+                  case 1:
+                    background_color=0x28;
+                    break;
+                  case 0:
+                    background_color=0x21;
+                    break;
+                   
+                }
               }
             }
           }
@@ -2829,24 +2850,24 @@ void main(void) {
     
     {
       a_state=actor_state;
-      update_debug_info2(0,vram_line);
+      //update_debug_info2(0,vram_line);
       update_player_status(vram_line2+4);
 
       #if NUM_ACTORS >1
       a_state++;
-      update_debug_info2(1,vram_line+7);
+      //update_debug_info2(1,vram_line+7);
       update_player_status(vram_line2+11);
       #endif
 
       #if NUM_ACTORS >2
       a_state++;
-      update_debug_info2(2,vram_line+14);
+      //update_debug_info2(2,vram_line+14);
       update_player_status(vram_line2+18);
       #endif
 
       #if NUM_ACTORS >3
       a_state++;
-      //update_debug_info(3,vram_line+23);
+      //update_debug_info2(3,vram_line+23);
       update_player_status(vram_line2+25);
       #endif
     }
@@ -2901,7 +2922,7 @@ void main(void) {
       clock=newclock;
 
       PPU.control=0b11000000;
-      PPU.scroll=0x00;
+      PPU.scroll=-scroll_nudge_x+0x00;
       PPU.scroll=0x02;
       PPU.mask =0b00011110;
     }
