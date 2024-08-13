@@ -2158,7 +2158,7 @@ void main(void) {
                     attack_force_x=20+a_state->damage;
                     attack_force_y=-(20+a_state->damage<<1);
                     scroll_nudge_x+=1;
-                    damage=5;
+                    damage=9;
                     break;
                   case ATTACK_NORMAL_LEFT:
                     current_effect->type=HIT;
@@ -2171,7 +2171,7 @@ void main(void) {
                     attack_force_x=-20-a_state->damage;
                     attack_force_y=-(20+a_state->damage<<1);
                     scroll_nudge_x-=1;
-                    damage=5;
+                    damage=9;
                     break;
                   case ATTACK_AIR_NEUTRAL_RIGHT:
                     current_effect->type=HIT;
@@ -2181,7 +2181,7 @@ void main(void) {
                     current_effect->isNew=true;
                     attack_force_x=40+a_state->damage;
                     attack_force_y=-(10+a_state->damage<<1);
-                    damage=3;
+                    damage=5;
                     scroll_nudge_x+=1;
                     break;
                   case ATTACK_AIR_NEUTRAL_LEFT:
@@ -2193,7 +2193,7 @@ void main(void) {
                     attack_force_x=-40-a_state->damage;
                     attack_force_y=-(10+a_state->damage<<1);
                     scroll_nudge_x-=1;
-                    damage=3;
+                    damage=5;
                     break;
                 }
                 a_state->damage+=damage;
