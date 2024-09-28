@@ -1827,6 +1827,7 @@ void main(void) {
           a_state->current_action = ACTION_STAND_BY_AIR;
           a_state->current_action_frames=0;
         }
+        if(clock&0x02)pal_col((i<<2)+1+16,0x32);
       } else
       {
 
