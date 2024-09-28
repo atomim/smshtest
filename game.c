@@ -1806,6 +1806,9 @@ void main(void) {
       byte action_frames=0;
       log_state_update(0);
       
+      // Reset outlines
+      pal_col((i<<2)+1+16,0x0d);
+      
       // Record initial position to detect going over the edge of the screen
       actor_prev_x[i]=actor_x[i];
       actor_prev_y[i]=actor_y[i];
@@ -2173,9 +2176,10 @@ void main(void) {
       {
         bool isCrouching = a_state->current_action==ACTION_CROUCHING_GROUND;
         for(k = 0; k<NUM_ACTORS;k++) 
-        {
+        { 
           // k is attacking player id
           // i is current player
+          // todo: move the attack to be calculated only once.
           log_process_attacks(0);
           if(k==i || a_state->hit_lag_frames_left>0 || !o_state->hit_lag_frames_left&0x80) // skip attacking self, or while hit_lagging
           {
@@ -2253,6 +2257,10 @@ void main(void) {
               o_state++;
               continue;
             }
+            else
+            {
+              pal_col((k<<2)+1+16,0x26);
+            }
             
             // Attack box y
             attack_y1=actor_y[k]+offset_y1;
@@ -2282,7 +2290,7 @@ void main(void) {
                     attack_force_x=20+a_state->damage;
                     attack_force_y=-(20+a_state->damage<<1);
                     scroll_nudge_x+=1;
-                    damage=9;
+                    damage=11;
                     break;
                   case ATTACK_NORMAL_LEFT:
                     current_effect->type=HIT;
@@ -2295,7 +2303,7 @@ void main(void) {
                     attack_force_x=-20-a_state->damage;
                     attack_force_y=-(20+a_state->damage<<1);
                     scroll_nudge_x-=1;
-                    damage=9;
+                    damage=11;
                     break;
                   case ATTACK_AIR_NEUTRAL_RIGHT:
                     current_effect->type=HIT;
@@ -2305,7 +2313,7 @@ void main(void) {
                     current_effect->isNew=true;
                     attack_force_x=40+a_state->damage;
                     attack_force_y=-(10+a_state->damage<<1);
-                    damage=5;
+                    damage=7;
                     scroll_nudge_x+=1;
                     break;
                   case ATTACK_AIR_NEUTRAL_LEFT:
@@ -2317,7 +2325,7 @@ void main(void) {
                     attack_force_x=-40-a_state->damage;
                     attack_force_y=-(10+a_state->damage<<1);
                     scroll_nudge_x-=1;
-                    damage=5;
+                    damage=7;
                     break;
                 }
                 a_state->damage+=damage;
