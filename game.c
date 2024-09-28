@@ -777,6 +777,8 @@ void log_end_physics(byte dummy)
 
 unsigned char num_ai;
 
+
+
 void simulate_player(unsigned char num)
 {
   // TODO: optimize perf
@@ -1146,6 +1148,128 @@ void simulate_player(unsigned char num)
   }
 }
 
+enum RelationToPlatforms
+{
+  PLATFORM_UNDER,
+  PLATFORM_LEFT,
+  PLATFORM_RIGHT,
+};
+
+enum RelationToEnemy
+{
+  testtttt,
+};
+enum CurrentBehavior
+{
+  testtttttt,
+};
+
+void simulate_player_new(unsigned char num)
+{
+  // TODO: optimize perf
+  unsigned char platform_id_under =255;
+  unsigned char platform_id_right=255;
+  unsigned char platform_id_left=255;
+  unsigned char actor_id_closest=255;
+  byte closest_distance=255;
+  
+  unsigned int r = rand();
+  
+  
+  
+  unsigned char r128;
+
+  Assert(num>NUM_ACTORS);
+
+  a_intent=intentlookup[num];
+  
+  // Balance chances based on amount of ai's
+  // Todo: convert to switch-case for a tiny bit better perf.
+  if(num_ai==1)
+  {
+    r128 = r&0x7f;
+  }
+  else if(num_ai==2)
+  {
+    r128 = r&0x3f;
+  }
+  else if(num_ai==3)
+  {
+    r128 = r&0x7f;
+    if(r128>0x5f)
+    {
+      r128=0;
+    }
+    else
+    {
+      r128=r128&0x1f;
+    }
+  }
+  else if(num_ai==4)
+  {
+    r128 = r&0x1f;
+  }
+  
+  // Closest actors
+  a_state=actor_state;
+  for(j=0;j<NUM_ACTORS;++j)
+  {
+    byte distx;
+    byte disty;
+    byte dist;
+    if(j==num || a_state->current_action==ACTION_SPAWNING)
+    {
+      a_state++;
+      continue;
+    }
+    distx=abs(actor_x[j]-actor_x[num]);
+    disty=abs(actor_x[j]-actor_x[num]);
+    dist=MAX(distx,disty);
+    if(dist<closest_distance)
+    {
+      
+      actor_id_closest=j;
+      closest_distance=distx;
+    }
+    
+    a_state++;
+  }
+  
+  //unsigned char closest_platform = 0;
+  // find closest platforms for AI
+  cur_platform=platforms;
+  for(j=0;j<p_count;++j)
+  {
+    bool isLeft = actor_x[num]+8>cur_platform->x1;
+    bool isRight = actor_x[num]+8<cur_platform->x2;
+
+    if(isLeft&isRight)
+    {
+      bool isUnder;
+      isUnder=actor_y[num]+17>=cur_platform->y1;
+      if(isUnder)
+      {
+        platform_id_under=j;
+        //todo: make sure it is closest under
+      }
+    }else
+    {
+      if(isLeft)
+      {
+        platform_id_left=j;
+        //todo: make sure it is closest
+      }
+      if(isRight)
+      {
+        platform_id_right=j;
+        //todo: make sure it is closest
+      }
+    }
+  }
+  
+  
+}
+
 void initialize_player(byte num, byte type, byte x, byte y)
 {
   actor_x[num]=x;
@@ -1276,7 +1400,7 @@ void main(void) {
   //
   while (1) {
     unsigned char oam_id; // sprite ID
-    byte background_color=0x1c;//0x1c;
+    byte background_color=0x1c;//0x13;//0x03;//0x1c;
     bool resetLives=false;
     byte deadCount=0;
     scroll_nudge_x=0; //todo: move out of zp
@@ -1747,13 +1871,13 @@ void main(void) {
           // Fall speed
           tmp_speed_y_value +=a_params->fall_force; 
 
-          if(a_intent->fast_fall && tmp_speed_y_value)
+          if(a_intent->fast_fall && tmp_speed_y_value > 0)
           {
             tmp_speed_y_value= a_params->fast_fall;
           }
           else
           {
-            tmp_speed_y_value = MIN(tmp_speed_y_value,a_params->fall_limit);
+            tmp_speed_y_value = MAX(tmp_speed_y_value,a_params->fall_limit);
           }
 
           // Air attack
