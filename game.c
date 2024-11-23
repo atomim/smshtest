@@ -401,6 +401,7 @@ struct effect{
   bool isNew;
 };
 
+
 struct effect effects[4];
 byte current_effect_index;
 
@@ -1402,8 +1403,14 @@ void main(void) {
     byte background_color=0x1c;//0x13;//0x03;//0x1c;
     bool resetLives=false;
     byte deadCount=0;
-    scroll_nudge_x=0; //todo: move out of zp
-
+    if(scroll_nudge_x>0)
+    {
+    scroll_nudge_x--; //todo: move out of zp
+    }
+    else if(scroll_nudge_x<0)
+    {
+      scroll_nudge_x++;
+    }
     
     APU.pulse[0].control=0xff;
     
@@ -2287,9 +2294,9 @@ void main(void) {
                     current_effect->isNew=true;
                     //attack_force_x=20+isCrouching?a_state->damage>>1:a_state->damage;
                     //attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
-                    attack_force_x=20+a_state->damage;
-                    attack_force_y=-(20+a_state->damage<<1);
-                    scroll_nudge_x+=1;
+                    attack_force_x=30+a_state->damage;
+                    attack_force_y=-(30+a_state->damage<<1);
+                    scroll_nudge_x+=2;
                     damage=11;
                     break;
                   case ATTACK_NORMAL_LEFT:
@@ -2300,9 +2307,9 @@ void main(void) {
                     current_effect->isNew=true;
                     //attack_force_x=-20-(isCrouching?a_state->damage>>1:a_state->damage);
                     //attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
-                    attack_force_x=-20-a_state->damage;
-                    attack_force_y=-(20+a_state->damage<<1);
-                    scroll_nudge_x-=1;
+                    attack_force_x=-30-a_state->damage;
+                    attack_force_y=-(30+a_state->damage<<1);
+                    scroll_nudge_x-=2;
                     damage=11;
                     break;
                   case ATTACK_AIR_NEUTRAL_RIGHT:
@@ -2311,10 +2318,10 @@ void main(void) {
                     current_effect->x=attack_x1+2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=40+a_state->damage;
-                    attack_force_y=-(10+a_state->damage<<1);
+                    attack_force_x=50+a_state->damage;
+                    attack_force_y=-(20+a_state->damage<<1);
                     damage=7;
-                    scroll_nudge_x+=1;
+                    scroll_nudge_x+=2;
                     break;
                   case ATTACK_AIR_NEUTRAL_LEFT:
                     current_effect->type=HIT;
@@ -2322,9 +2329,9 @@ void main(void) {
                     current_effect->x=attack_x1-2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=-40-a_state->damage;
-                    attack_force_y=-(10+a_state->damage<<1);
-                    scroll_nudge_x-=1;
+                    attack_force_x=-50-a_state->damage;
+                    attack_force_y=-(20+a_state->damage<<1);
+                    scroll_nudge_x-=2;
                     damage=7;
                     break;
                 }
@@ -2451,7 +2458,6 @@ void main(void) {
 
           on_ground = false;
           on_edge = false;
-          
           for(j=0;j<p_count;++j) // heavy on air. 2,5 scanlines min, 5.5 max?
           {
             bool skip_due_to_fall_through;
@@ -2461,22 +2467,10 @@ void main(void) {
             byte cur_platform_y2 = cur_platform->y2;
 
             log_collision_calculation(0);
-            
+
+            falling=*a_speed_y >= 0; // may update for each platform
             actor_feet_x=actor_x[i]+8; // may update for each platform
             actor_feet_y=actor_y[i]+17; // may update for each platform
-            if(((cur_platform->type==0)?actor_y[i]>cur_platform_y1:(actor_feet_y>cur_platform_y1)
-               ||actor_feet_y>cur_platform_y2
-               ||actor_x[i]>cur_platform_x2
-               ||actor_x[i]+16<cur_platform_x1
-                )
-              )
-            {
-              cur_platform++;
-              continue;
-            }
-            
-            falling=*a_speed_y >= 0; // may update for each platform
-            
 
             speed_y_in_pixels=(*a_speed_y>>8);
             on_platform=
