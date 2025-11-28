@@ -12,6 +12,8 @@ for the nametable. We copy it from an array in ROM to video RAM.
 
 #include "apu.h"
 
+#include "opt_macros.h"
+
 //#defi ne CFGFILE test
 
 // link the pattern table into CHR ROM
@@ -52,6 +54,7 @@ const signed char hit_lag_random_shake[32] =
   -3, -1,  2,  3, -2,  3, -2,  0,
   2,  -3, -1,  1, -1,  1,  3,  -2
 };
+
   
 
 //switch this to disable asserts.
@@ -211,7 +214,7 @@ const unsigned char name[]={\
 // *flich animation for hit stun
 // *
 
-
+// 1
 DEF_METASPRITE_2x2_VARS(AIicon,0xc8);
 DEF_METASPRITE_2x2_VARS(char1icon,0xd0);
 
@@ -405,6 +408,7 @@ struct effect{
 struct effect effects[4];
 byte current_effect_index;
 
+// 2
 
 #define NUM_ACTORS 3
 #define NUM_PLATFORMS 4
@@ -422,6 +426,9 @@ struct state actor_state[NUM_ACTORS];
 struct intent actor_intent[NUM_ACTORS];
 struct params actor_params[NUM_ACTORS]; // Todo: move to rom
 struct platform platforms[NUM_PLATFORMS];
+
+
+// 3
 
 // try to push a frequent pointer to zp.
 #pragma bss-name (push,"ZEROPAGE")
@@ -448,8 +455,15 @@ short int attack_force_x;
 short int attack_force_y;
 unsigned char i,j,k;
 signed char scroll_nudge_x;
+
+byte abs_a, abs_b; // This is for optimized abs,min,max,clamp
+
 #pragma bss-name (pop)
 #pragma data-name(pop)
+
+
+
+// 4
 
 struct vram_inst
 {
@@ -557,7 +571,7 @@ void reset_level_and_bg()
 
 void update_player_status(struct vram_inst* inst)
 {
-  short int damage = a_state->damage;
+  byte damage = a_state->damage;
   if(a_state->current_action == ACTION_SPAWNING)
   {
     return;
@@ -713,7 +727,7 @@ void update_debug_info2(byte player,struct vram_inst* inst)
   
 }
 
-
+// 5
 
 #pragma warn (unused-param, push, off)
 #if 1
@@ -777,7 +791,7 @@ void log_end_physics(byte dummy)
 
 unsigned char num_ai;
 
-
+// 6
 
 void simulate_player(unsigned char num)
 {
@@ -789,9 +803,11 @@ void simulate_player(unsigned char num)
   unsigned char actor_id_closest=255;
   byte closest_distance=255;
   
-  
   unsigned char r128;
 
+ 
+  byte actor_center_x=(byte)(actor_x[num]+8);
+  
   Assert(num>NUM_ACTORS);
 
   a_intent=intentlookup[num];
@@ -835,8 +851,10 @@ void simulate_player(unsigned char num)
       a_state++;
       continue;
     }
-    distx=abs(actor_x[j]-actor_x[num]);
-    disty=abs(actor_x[j]-actor_x[num]);
+    //distx=abs(actor_x[j]-actor_x[num]);
+    //disty=abs(actor_x[j]-actor_x[num]);
+    ABS_DIFF(actor_x,j,num,distx);
+    ABS_DIFF(actor_y,j,num,disty);
     dist=MAX(distx,disty);
     if(dist<closest_distance)
     {
@@ -853,13 +871,13 @@ void simulate_player(unsigned char num)
   cur_platform=platforms;
   for(j=0;j<p_count;++j)
   {
-    bool isLeft = actor_x[num]+8>cur_platform->x1;
-    bool isRight = actor_x[num]+8<cur_platform->x2;
+    bool isLeft = actor_center_x>cur_platform->x1;
+    bool isRight = actor_center_x<cur_platform->x2;
 
     if(isLeft&isRight)
     {
       bool isUnder;
-      isUnder=actor_y[num]+17>=cur_platform->y1;
+      isUnder=(byte)(actor_y[num]+17)>=cur_platform->y1;
       if(isUnder)
       {
         platform_id_under=j;
@@ -1017,7 +1035,7 @@ void simulate_player(unsigned char num)
         a_intent->crouch = false;
         break;
       case 7: // Fast fall / crouch;
-        if(actor_y[actor_id_closest]>actor_y[num]+2)
+        if(actor_y[actor_id_closest]>(byte)(actor_y[num]+2))
         {
           a_intent->fast_fall = true;
           a_intent->crouch = true;
@@ -1113,12 +1131,12 @@ void simulate_player(unsigned char num)
         // Attack if close enough
         {
           unsigned char xdiff;
-          xdiff=actor_x[actor_id_closest]-actor_x[num]; // positive means right side
+          xdiff=(unsigned char)(actor_x[actor_id_closest]-actor_x[num]); // positive means right side
           if(closest_distance<16)
           {
             if(a_state->facing_dir==DIR_LEFT)
             {
-              if(actor_x[actor_id_closest]<actor_x[num]+4){
+              if(actor_x[actor_id_closest]<(byte)(actor_x[num]+4)){
                 a_intent->attack = true;
               }
               else
@@ -1128,7 +1146,7 @@ void simulate_player(unsigned char num)
             }
             else
             {
-              if(actor_x[actor_id_closest]>actor_x[num]-4){
+              if(actor_x[actor_id_closest]>(byte)(actor_x[num]-4)){
                 a_intent->attack = true;
               }
               else
@@ -1222,8 +1240,11 @@ void simulate_player_new(unsigned char num)
       a_state++;
       continue;
     }
-    distx=abs(actor_x[j]-actor_x[num]);
-    disty=abs(actor_x[j]-actor_x[num]);
+    //TODO: replace with fast macros
+    //distx=abs(actor_x[j]-actor_x[num]);
+    //disty=abs(actor_x[j]-actor_x[num]);
+    ABS_DIFF(actor_x,j,num,distx);
+    ABS_DIFF(actor_y,j,num,disty);
     dist=MAX(distx,disty);
     if(dist<closest_distance)
     {
@@ -1240,6 +1261,7 @@ void simulate_player_new(unsigned char num)
   cur_platform=platforms;
   for(j=0;j<p_count;++j)
   {
+    // Todo use (byte) to optimize
     bool isLeft = actor_x[num]+8>cur_platform->x1;
     bool isRight = actor_x[num]+8<cur_platform->x2;
 
@@ -1269,6 +1291,8 @@ void simulate_player_new(unsigned char num)
   
   
 }
+
+// 8
 
 void initialize_player(byte num, byte type, byte x, byte y)
 {
@@ -1400,7 +1424,7 @@ void main(void) {
   //
   while (1) {
     unsigned char oam_id; // sprite ID
-    byte background_color=0x1c;//0x13;//0x03;//0x1c;
+    byte background_color=0x00;//0x13;//0x03;//0x1c;
     bool resetLives=false;
     byte deadCount=0;
     if(scroll_nudge_x>0)
@@ -1647,6 +1671,8 @@ void main(void) {
     
     num_ai=NUM_ACTORS-player1joined-player2joined;
     
+    // 9
+    
     // Control of player intents based on controller or simulation.
     {
       // Reset left/right.
@@ -1793,9 +1819,13 @@ void main(void) {
       }
     }
     
+
+    
     //
     // SIMULATION LOOP
     //
+    
+    // 10
     
     // Reset pointers for first iteration. This is faster than indexing.
     a_state=actor_state;
@@ -1811,6 +1841,8 @@ void main(void) {
       bool on_ground=false;
       byte action_frames=0;
       log_state_update(0);
+      
+      // 11
       
       // Reset outlines
       pal_col((i<<2)+1+16,0x0d);
@@ -1863,6 +1895,8 @@ void main(void) {
         {
           
         }
+        
+        // State simulation
 
 	if(a_state->current_action==ACTION_HIT_STUN_AIR 
            || a_state->current_action==ACTION_HIT_STUN_GROUND)
@@ -2158,6 +2192,8 @@ void main(void) {
     */
     log_precalc_hitboxes(0);
     
+    // 12
+    
     // Actor State and intent physics
     
     a_state=actor_state;
@@ -2269,18 +2305,20 @@ void main(void) {
               pal_col((k<<2)+1+16,0x26);
             }
             
+            // 13
+            
             // Attack box y
             attack_y1=actor_y[k]+offset_y1;
             attack_y2=actor_y[k]+offset_y2;
             // Hit box y comparison
             if(actor_y[i]<attack_y2 // attack bottom lower than head
-              && actor_y[i]+17 > attack_y1 // feet lower than attack top
+              && (byte)(actor_y[i]+17) > attack_y1 // feet lower than attack top
               )
             {
               attack_x1=actor_x[k]+offset_x1;
               attack_x2=actor_x[k]+offset_x2;
-              if(actor_x[i]+12>attack_x1 // actor hitbox comparison
-                 && actor_x[i]+4<attack_x2
+              if((byte)(actor_x[i]+12)>attack_x1 // actor hitbox comparison
+                 && (byte)(actor_x[i]+4)<attack_x2
                 )
               {
                 byte damage;
@@ -2381,7 +2419,7 @@ void main(void) {
                 {
                   a_state->current_action=ACTION_HIT_STUN_AIR;
                 }
-                a_state->current_attack_frames_left=MIN(100,(abs(attack_force_x)>>2)+4); //reuse attack frame for hit stun.
+                a_state->current_attack_frames_left=MIN(100,((attack_force_x>0?attack_force_x:-attack_force_x)>>2)+4); //reuse attack frame for hit stun.
                 switch(i)
                 {
                   case 3:
@@ -2405,6 +2443,8 @@ void main(void) {
         } 
       }
     
+      
+      // 14
       
       log_start_physics(0); // (3 scanlines before log_collision_calculation)
       // Actor Physics: around 25 scanlines
@@ -2468,13 +2508,14 @@ void main(void) {
 
             log_collision_calculation(0);
 
-            falling=*a_speed_y >= 0; // may update for each platform
-            actor_feet_x=actor_x[i]+8; // may update for each platform
-            actor_feet_y=actor_y[i]+17; // may update for each platform
+            falling = *a_speed_y >= 0; // may update for each platform
+            actor_feet_x = actor_x[i]+8; // may update for each platform
+            actor_feet_y = actor_y[i]+17; // may update for each platform
 
             speed_y_in_pixels=(*a_speed_y>>8);
             on_platform=
-               actor_feet_y>=cur_platform_y1-speed_y_in_pixels
+               //actor_feet_y>=cur_platform_y1-speed_y_in_pixels // fix promotion to 16bit.
+              (byte)(actor_feet_y+speed_y_in_pixels)>=cur_platform_y1
                && actor_feet_y<=cur_platform_y2
                && actor_feet_x>cur_platform_x1
                && actor_feet_x<cur_platform_x2;
@@ -2494,12 +2535,12 @@ void main(void) {
                   )
                 {
                   if(actor_feet_x>cur_platform_x1
-                    && actor_feet_x<cur_platform_x1+8)
+                    && actor_feet_x<(bool)(cur_platform_x1+8))
                   {
                     actor_x[i]=cur_platform_x1-8;
                   } 
                   else if (actor_feet_x<cur_platform_x2
-                           && actor_feet_x>cur_platform_x2-8)
+                           && actor_feet_x>(bool)(cur_platform_x2-8))
                   {
                     actor_x[i]=cur_platform_x2-8;
                   }
@@ -2565,8 +2606,8 @@ void main(void) {
               }
               // todo: split condition to improve perf
               // on_edge state update based on facing dir
-              if(((a_state->facing_dir == DIR_LEFT && actor_feet_x<cur_platform_x1+6) 
-                  || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>cur_platform_x2-6))
+              if(((a_state->facing_dir == DIR_LEFT && actor_feet_x<(bool)(cur_platform_x1+6)) 
+                  || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>(bool)(cur_platform_x2-6)))
                  )
               {
                 on_edge=true;
@@ -2913,6 +2954,9 @@ void main(void) {
         current_effect++;
       }
     }
+    
+    // 15
+    
     // Update Actor Sprites
     {
       a_state=actor_state;
