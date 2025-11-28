@@ -2345,7 +2345,7 @@ void main(void) {
                     current_effect->isNew=true;
                     //attack_force_x=-20-(isCrouching?a_state->damage>>1:a_state->damage);
                     //attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
-                    attack_force_x=-(byte)(30-a_state->damage);
+                    attack_force_x=-(byte)(30+a_state->damage);
                     attack_force_y=-(byte)((byte)(30+a_state->damage)<<1);
                     scroll_nudge_x-=2;
                     damage=11;
@@ -2367,7 +2367,7 @@ void main(void) {
                     current_effect->x=attack_x1-2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=-(byte)(50-a_state->damage);
+                    attack_force_x=-(byte)(50+a_state->damage);
                     attack_force_y=-(byte)((byte)(20+a_state->damage)<<1);
                     scroll_nudge_x-=2;
                     damage=7;
