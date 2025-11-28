@@ -2332,8 +2332,8 @@ void main(void) {
                     current_effect->isNew=true;
                     //attack_force_x=20+isCrouching?a_state->damage>>1:a_state->damage;
                     //attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
-                    attack_force_x=30+a_state->damage;
-                    attack_force_y=-(30+a_state->damage<<1);
+                    attack_force_x=(byte)(30+a_state->damage);
+                    attack_force_y=-(byte)((byte)(30+a_state->damage)<<1);
                     scroll_nudge_x+=2;
                     damage=11;
                     break;
@@ -2345,8 +2345,8 @@ void main(void) {
                     current_effect->isNew=true;
                     //attack_force_x=-20-(isCrouching?a_state->damage>>1:a_state->damage);
                     //attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
-                    attack_force_x=-30-a_state->damage;
-                    attack_force_y=-(30+a_state->damage<<1);
+                    attack_force_x=-(byte)(30-a_state->damage);
+                    attack_force_y=-(byte)((byte)(30+a_state->damage)<<1);
                     scroll_nudge_x-=2;
                     damage=11;
                     break;
@@ -2356,8 +2356,8 @@ void main(void) {
                     current_effect->x=attack_x1+2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=50+a_state->damage;
-                    attack_force_y=-(20+a_state->damage<<1);
+                    attack_force_x=(byte)(50+a_state->damage);
+                    attack_force_y=-(byte)((byte)(20+a_state->damage)<<1);
                     damage=7;
                     scroll_nudge_x+=2;
                     break;
@@ -2367,8 +2367,8 @@ void main(void) {
                     current_effect->x=attack_x1-2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=-50-a_state->damage;
-                    attack_force_y=-(20+a_state->damage<<1);
+                    attack_force_x=-(byte)(50-a_state->damage);
+                    attack_force_y=-(byte)((byte)(20+a_state->damage)<<1);
                     scroll_nudge_x-=2;
                     damage=7;
                     break;
@@ -2395,7 +2395,7 @@ void main(void) {
                 else
                 {
                   actor_speedy[i]=attack_force_y<<1;
-                  actor_speedx[i]=attack_force_x<<2;
+                  actor_speedx[i]=(byte)(attack_force_x<<2); // eliminate extra jsr
                 }
    
                 current_effect->frames=6;
@@ -2419,7 +2419,11 @@ void main(void) {
                 {
                   a_state->current_action=ACTION_HIT_STUN_AIR;
                 }
-                a_state->current_attack_frames_left=MIN(100,((attack_force_x>0?attack_force_x:-attack_force_x)>>2)+4); //reuse attack frame for hit stun.
+                {
+                  //reuse attack frame for hit stun.
+                  byte stunframes=((byte)(attack_force_x>0?attack_force_x:-attack_force_x)>>2)+4;
+                  a_state->current_attack_frames_left=MIN(100,stunframes);
+                }
                 switch(i)
                 {
                   case 3:
@@ -2535,12 +2539,12 @@ void main(void) {
                   )
                 {
                   if(actor_feet_x>cur_platform_x1
-                    && actor_feet_x<(bool)(cur_platform_x1+8))
+                    && actor_feet_x<(byte)(cur_platform_x1+8))
                   {
                     actor_x[i]=cur_platform_x1-8;
                   } 
                   else if (actor_feet_x<cur_platform_x2
-                           && actor_feet_x>(bool)(cur_platform_x2-8))
+                           && actor_feet_x>(byte)(cur_platform_x2-8))
                   {
                     actor_x[i]=cur_platform_x2-8;
                   }
@@ -2606,8 +2610,8 @@ void main(void) {
               }
               // todo: split condition to improve perf
               // on_edge state update based on facing dir
-              if(((a_state->facing_dir == DIR_LEFT && actor_feet_x<(bool)(cur_platform_x1+6)) 
-                  || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>(bool)(cur_platform_x2-6)))
+              if(((a_state->facing_dir == DIR_LEFT && actor_feet_x<(byte)(cur_platform_x1+6)) 
+                  || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>(byte)(cur_platform_x2-6)))
                  )
               {
                 on_edge=true;
