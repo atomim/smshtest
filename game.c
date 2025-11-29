@@ -347,6 +347,9 @@ struct state{
 };
 
 
+
+// Converted to arrays
+/*
 struct intent{
   enum dir dir;
   enum vdir vdir;
@@ -357,6 +360,7 @@ struct intent{
   bool fast_fall;
   bool attack;
 };
+*/
 
 
 struct params{
@@ -425,10 +429,18 @@ short int actor_speedx[NUM_ACTORS]; // Speed
 short int actor_speedy[NUM_ACTORS];
 void *actor_sprite[NUM_ACTORS];// Which sprite to show
 struct state actor_state[NUM_ACTORS];
-struct intent actor_intent[NUM_ACTORS];
 struct params actor_params[NUM_ACTORS]; // Todo: move to rom
-//struct platform platforms[NUM_PLATFORMS];
 
+//struct intent actor_intent[NUM_ACTORS];
+byte actor_intent_dir[NUM_ACTORS];
+byte actor_intent_vdir[NUM_ACTORS];
+byte actor_intent_jump[NUM_ACTORS];
+byte actor_intent_crouch[NUM_ACTORS];
+byte actor_intent_dash[NUM_ACTORS];
+byte actor_intent_fast_fall[NUM_ACTORS];
+byte actor_intent_attack[NUM_ACTORS];
+
+//struct platform platforms[NUM_PLATFORMS];
 byte platform_x1[NUM_PLATFORMS];
 byte platform_x2[NUM_PLATFORMS];
 byte platform_y1[NUM_PLATFORMS];
@@ -687,12 +699,10 @@ void update_debug_info(byte player,struct vram_inst* inst)
   inst->_1_lda_val = 0x30+cur_action;
   inst++;
   
-  a_intent=&actor_intent[player];
-  
-  inst->_1_lda_val = dir_to_char[a_intent->dir];
+  inst->_1_lda_val = dir_to_char[actor_intent_dir[i]];
   inst++;
   
-  if(a_intent->jump)
+  if(actor_intent_jump[i])
   {
     inst->_1_lda_val = 'J';
   }
@@ -702,7 +712,7 @@ void update_debug_info(byte player,struct vram_inst* inst)
   }
   inst++;
   
-  if(a_intent->crouch)
+  if(actor_intent_crouch[i])
   {
     inst->_1_lda_val = 'C';
   }
@@ -712,7 +722,7 @@ void update_debug_info(byte player,struct vram_inst* inst)
   }
   inst++;
   
-  if(a_intent->fast_fall)
+  if(actor_intent_fast_fall[i])
   {
     inst->_1_lda_val = 'F';
   }
@@ -723,7 +733,7 @@ void update_debug_info(byte player,struct vram_inst* inst)
   
 }
 
-void update_debug_info2(byte player,struct vram_inst* inst)
+void update_debug_info2(byte /*player*/,struct vram_inst* inst)
 {
   enum action_state cur_action=a_state->current_action;
 
@@ -737,7 +747,7 @@ void update_debug_info2(byte player,struct vram_inst* inst)
   inst->_1_lda_val = 0x30+a_state->current_attack_frames_left;
   inst++;
   
-  a_intent=&actor_intent[player];//dummy
+  //a_intent=&actor_intent[player];//dummy
   
   //inst->_1_lda_val = dir_to_char[a_intent->dir];
   //inst++;
@@ -1056,58 +1066,58 @@ void simulate_player(unsigned char num)
       case 0:
         break;
       case 1: // Jump
-        a_intent->jump = true;
-        a_intent->crouch = false;
+        actor_intent_jump[num] = true;
+        actor_intent_crouch[num] = false;
         break;
       case 2:
       case 3: // Release Jump
-        a_intent->jump = false;
+        actor_intent_jump[num] = false;
         break;
       case 4: // Stop
         if(platform_id_under==255)
         {
           break;
         }
-        a_intent->dir = DIR_NONE;
-        a_intent->crouch = false;
+        actor_intent_dir[num] = DIR_NONE;
+        actor_intent_crouch[num] = false;
         break;
       case 5: // Left
-        a_intent->dir = DIR_LEFT;
-        a_intent->crouch = false;
+        actor_intent_dir[num]= DIR_LEFT;
+        actor_intent_crouch[num] = false;
         break;
       case 6: // Right
-        a_intent->dir = DIR_RIGHT;
-        a_intent->crouch = false;
+        actor_intent_dir[num] = DIR_RIGHT;
+        actor_intent_crouch[num] = false;
         break;
       case 7: // Fast fall / crouch;
         if(actor_y[actor_id_closest]>(byte)(actor_y[num]+2))
         {
-          a_intent->fast_fall = true;
-          a_intent->crouch = true;
+          actor_intent_fast_fall[num] = true;
+          actor_intent_crouch[num] = true;
         }
         break;
       case 8:
       case 9: // crouch still or go toward center
         if(128-32<actor_x[num]&&actor_x[num]<128+32)
         {
-          a_intent->crouch = true;
-          a_intent->dir = DIR_NONE;
+          actor_intent_crouch[num] = true;
+          actor_intent_dir[num] = DIR_NONE;
         }
         else
         {
           if(actor_x[num]>128)
           {
-           a_intent->dir = DIR_LEFT; 
+           actor_intent_dir[num] = DIR_LEFT; 
           }
           else
           {
-            a_intent->dir = DIR_RIGHT;
+            actor_intent_dir[num] = DIR_RIGHT;
           }
         }
         break;
       case 10: // Cancel Fast fall / crouch
-        a_intent->fast_fall = false;
-        a_intent->crouch = false;
+        actor_intent_fast_fall[num] = false;
+        actor_intent_crouch[num] = false;
         break;
       case 11:
       case 12:
@@ -1124,16 +1134,16 @@ void simulate_player(unsigned char num)
         {
           if(platform_id_left!=255)
           {
-            a_intent->dir = DIR_LEFT;
+            actor_intent_dir[num] = DIR_LEFT;
           }
           if(platform_id_right!=255)
           {
-            a_intent->dir = DIR_RIGHT;
+            actor_intent_dir[num] = DIR_RIGHT;
           }
-          a_intent->fast_fall=false;
+          actor_intent_fast_fall[num]=false;
           if(actor_speedy[num]>0)
           {
-            a_intent->jump=true;
+            actor_intent_jump[num]=true;
           }
         }
         break;
@@ -1147,24 +1157,24 @@ void simulate_player(unsigned char num)
         {
           break;
         }
-        a_intent->crouch = false;
+        actor_intent_crouch[num] = false;
         if(actor_x[actor_id_closest]>actor_x[num])
         {
-          a_intent->dir = DIR_RIGHT;
+          actor_intent_dir[num] = DIR_RIGHT;
         }
         else
         {
-          a_intent->dir = DIR_LEFT;
+          actor_intent_dir[num] = DIR_LEFT;
         }
         if(actor_y[actor_id_closest]<actor_y[num])
         {
-          a_intent->jump=true;
-          a_intent->fast_fall=false;
+          actor_intent_jump[num]=true;
+          actor_intent_fast_fall[num]=false;
         }
         else
         {
-          a_intent->jump=false;
-          a_intent->fast_fall=true;
+          actor_intent_jump[num]=false;
+          actor_intent_fast_fall[num]=true;
         }
         break;
       case 26:
@@ -1182,26 +1192,26 @@ void simulate_player(unsigned char num)
             if(a_state->facing_dir==DIR_LEFT)
             {
               if(actor_x[actor_id_closest]<(byte)(actor_x[num]+4)){
-                a_intent->attack = true;
+                actor_intent_attack[num] = true;
               }
               else
               {
-                a_intent->dir=DIR_RIGHT;
+                actor_intent_dir[num]=DIR_RIGHT;
               }
             }
             else
             {
               if(actor_x[actor_id_closest]>(byte)(actor_x[num]-4)){
-                a_intent->attack = true;
+                actor_intent_attack[num] = true;
               }
               else
               {
-                a_intent->dir=DIR_LEFT;
+                actor_intent_dir[num]=DIR_LEFT;
               }
             }
             if(r128&0x01)
             {
-              a_intent->dir=DIR_NONE;
+              actor_intent_dir[num]=DIR_NONE;
             }
           }
           
@@ -1411,11 +1421,11 @@ void main(void) {
   
   current_effect=effects;
   
-  a_intent=actor_intent;    
-  for(i =0;i<NUM_ACTORS;i++)
-  {
-     intentlookup[i]=a_intent;a_intent++;
-  }
+  //!a_intent=actor_intent;    
+  //!for(i =0;i<NUM_ACTORS;i++)
+  //!{
+  //!   intentlookup[i]=a_intent;a_intent++;
+  //!}
 
   //
   // INIT
@@ -1724,80 +1734,80 @@ void main(void) {
       {
         if(pad & PAD_LEFT && !(pad & PAD_RIGHT))
         {
-            actor_intent[0].dir = DIR_LEFT;
+            actor_intent_dir[0] = DIR_LEFT;
         }
         else if(pad & PAD_RIGHT)
         {
-            actor_intent[0].dir = DIR_RIGHT;
+            actor_intent_dir[0] = DIR_RIGHT;
         }
         else
         {
-          actor_intent[0].dir = DIR_NONE;
+          actor_intent_dir[0] = DIR_NONE;
         }
 
         // Jump / cancel jump when state changes. Let simulation update consume intent in between.
         if(pad_rising & PAD_A)
         {
-          actor_intent[0].jump = true;
+          actor_intent_jump[0] = true;
         }
-        if((pad & PAD_A )==false && actor_intent[0].jump==true)
+        if((pad & PAD_A )==false && actor_intent_jump[0]==true)
         {
-          actor_intent[0].jump = false;
+          actor_intent_jump[0] = false;
         }
 
-        actor_intent[0].fast_fall = pad & PAD_DOWN?true:false;
+        actor_intent_fast_fall[0] = pad & PAD_DOWN?true:false;
         if(pad_rising & PAD_DOWN)
         {
-          actor_intent[0].crouch = true;
+          actor_intent_crouch[0] = true;
         }
         else if (pad_falling & PAD_DOWN)
         {
-          actor_intent[0].crouch = false;
+          actor_intent_crouch[0] = false;
         }
 
         if(pad_rising & PAD_B)
         {
-          actor_intent[0].attack = true;
+          actor_intent_attack[0] = true;
         }
       }
       if(player2joined)
       {
         if(pad2 & PAD_LEFT && !(pad2 & PAD_RIGHT))
         {
-            actor_intent[1].dir = DIR_LEFT;
+            actor_intent_dir[1] = DIR_LEFT;
         }
         else if(pad2 & PAD_RIGHT)
         {
-            actor_intent[1].dir = DIR_RIGHT;
+            actor_intent_dir[1] = DIR_RIGHT;
         }
         else
         {
-          actor_intent[1].dir = DIR_NONE;
+          actor_intent_dir[1] = DIR_NONE;
         }
 
         // Jump / cancel jump when state changes. Let simulation update consume intent in between.
         if(pad_rising2 & PAD_A)
         {
-          actor_intent[1].jump = true;
+          actor_intent_jump[1] = true;
         }
-        if((pad2 & PAD_A )==false && actor_intent[1].jump==true)
+        if((pad2 & PAD_A )==false && actor_intent_jump[1]==true)
         {
-          actor_intent[1].jump = false;
+          actor_intent_jump[1] = false;
         }
 
-        actor_intent[1].fast_fall = pad2 & PAD_DOWN?true:false;
+        actor_intent_fast_fall[1] = pad2 & PAD_DOWN?true:false;
         if(pad_rising2 & PAD_DOWN)
         {
-          actor_intent[1].crouch = true;
+          actor_intent_crouch[1] = true;
         }
         else if (pad_falling2 & PAD_DOWN)
         {
-          actor_intent[1].crouch = false;
+          actor_intent_crouch[1] = false;
         }
 
         if(pad_rising2 & PAD_B)
         {
-          actor_intent[1].attack = true;
+          actor_intent_attack[1] = true;
         }
       }
       
@@ -1873,7 +1883,7 @@ void main(void) {
     
     // Reset pointers for first iteration. This is faster than indexing.
     a_state=actor_state;
-    a_intent=actor_intent;
+    //!a_intent=actor_intent;
     a_params=actor_params;
     a_speed_x=actor_speedx;
     a_speed_y=actor_speedy;
@@ -1903,7 +1913,7 @@ void main(void) {
       {
         a_state->current_action_frames--;
         if((a_state->current_action_frames < 60
-            && (a_intent->fast_fall || a_intent->jump || a_intent->dir!=DIR_NONE)
+            && (actor_intent_fast_fall[i] || actor_intent_jump[i] || actor_intent_dir[i]!=DIR_NONE)
            )||a_state->current_action_frames == 0)
         {
           a_state->current_action = ACTION_STAND_BY_AIR;
@@ -1955,11 +1965,11 @@ void main(void) {
         else if (!on_ground) // on air
         {
           // Reset crouch intent on air.
-          a_intent->crouch = false;
+          actor_intent_crouch[i] = false;
           // Fall speed
           tmp_speed_y_value +=a_params->fall_force; 
 
-          if(a_intent->fast_fall && tmp_speed_y_value > 0)
+          if(actor_intent_fast_fall[i] && tmp_speed_y_value > 0)
           {
             tmp_speed_y_value= a_params->fast_fall;
           }
@@ -1969,7 +1979,7 @@ void main(void) {
           }
 
           // Air attack
-          if(a_intent->attack && a_state->current_attack==ATTACK_NONE) // todo: switch to check animated/cancelable attack
+          if(actor_intent_attack[i] && a_state->current_attack==ATTACK_NONE) // todo: switch to check animated/cancelable attack
           {
             if(a_state->facing_dir == DIR_RIGHT)
             {
@@ -1987,23 +1997,23 @@ void main(void) {
           }
 
           // jump
-          if(a_intent->jump)
+          if(actor_intent_jump[i])
           {
             if(a_state->double_jumps_left>0)
             {
               tmp_speed_y_value = -a_params->jump_force; 
               a_state->double_jumps_left-=1;
             }
-            a_intent->jump = false;
+            actor_intent_jump[i] = false;
           }
 
           if(cur_action==ACTION_STAND_BY_AIR)
           {
-            if(a_intent->dir == DIR_LEFT)
+            if(actor_intent_dir[i] == DIR_LEFT)
             {
               tmp_target_speed_x=-a_params->run_speed;
             }
-            else if(a_intent->dir == DIR_RIGHT)
+            else if(actor_intent_dir[i] == DIR_RIGHT)
             {
               tmp_target_speed_x=a_params->run_speed; 
             }
@@ -2014,11 +2024,11 @@ void main(void) {
         else // on ground
         {
           // Reset fast fall intent on ground. Todo:move after input.
-          a_intent->fast_fall=false;
+          actor_intent_fast_fall[i]=false;
 
           // Initiate attack from any non-animated state.
           // Set action to stand by ground.
-          if(a_intent->attack 
+          if(actor_intent_attack[i] 
              && cur_action != ACTION_DASHING_GROUND
              && a_state->current_attack==ATTACK_NONE) // todo: switch to check animated/cancelable attack
           {
@@ -2040,7 +2050,7 @@ void main(void) {
           if(cur_action==ACTION_STAND_BY_GROUND)
           {
             // Transition stabdby -> walk
-            if(a_intent->dir != DIR_NONE)
+            if(actor_intent_dir[i] != DIR_NONE)
             {
               cur_action=ACTION_WALKING_GROUND;
               action_frames=0;
@@ -2061,11 +2071,11 @@ void main(void) {
               {
                 action_frames=0;
               }
-              if(a_intent->dir == DIR_LEFT)
+              if(actor_intent_dir[i] == DIR_LEFT)
               {
                 tmp_target_speed_x=-a_params->walk_speed; // TODO: gradual change
               }
-              else if(a_intent->dir == DIR_RIGHT)
+              else if(actor_intent_dir[i] == DIR_RIGHT)
               {
                 tmp_target_speed_x=a_params->walk_speed;
               }
@@ -2075,16 +2085,16 @@ void main(void) {
           {
 
             // change action to dash if attacking when running
-            if(a_intent->attack)
+            if(actor_intent_attack[i])
             {
               cur_action=ACTION_DASHING_GROUND;
               action_frames=0;
             }
-            else if(a_intent->dir == DIR_LEFT)
+            else if(actor_intent_dir[i] == DIR_LEFT)
             {
               tmp_target_speed_x=-a_params->run_speed; // TODO: gradual change
             }
-            else if(a_intent->dir == DIR_RIGHT)
+            else if(actor_intent_dir[i] == DIR_RIGHT)
             {
               tmp_target_speed_x=a_params->run_speed;
             }
@@ -2115,7 +2125,7 @@ void main(void) {
             {
               // todo:skidding
               // todo:dashing
-              if(a_intent->dir == a_state->moving_dir)
+              if(actor_intent_dir[i] == a_state->moving_dir)
               {
                 cur_action=ACTION_RUNNING_GROUND;
               }
@@ -2128,7 +2138,7 @@ void main(void) {
           } 
           else
           {
-            if(a_intent->crouch)
+            if(actor_intent_crouch[i])
             {
               cur_action=ACTION_CROUCHING_GROUND;
               action_frames=0;
@@ -2136,13 +2146,13 @@ void main(void) {
           }
 
           if(cur_action==ACTION_CROUCHING_GROUND
-            && a_intent->crouch!=true)
+            && actor_intent_crouch[i]!=true)
           {
             cur_action=ACTION_STAND_BY_GROUND;
             action_frames=0;
           }
 
-          if(a_intent->jump)
+          if(actor_intent_jump[i])
           {
             if(cur_action!=ACTION_CROUCHING_TO_JUMP_GROUND)
             {
@@ -2154,7 +2164,7 @@ void main(void) {
             {
               // Do normal jump
               tmp_speed_y_value = -a_params->jump_force;
-              a_intent->jump = false;
+              actor_intent_jump[i] = false;
               cur_action = ACTION_STAND_BY_AIR;
               a_state->double_jumps_left=1;
               action_frames=0;
@@ -2164,7 +2174,7 @@ void main(void) {
           else if (cur_action==ACTION_CROUCHING_TO_JUMP_GROUND)
           {
             tmp_speed_y_value = -a_params->short_hop_force;
-            a_intent->jump = false;
+            actor_intent_jump[i] = false;
             cur_action = ACTION_STAND_BY_AIR;
             a_state->double_jumps_left=1;
             action_frames=0;
@@ -2175,7 +2185,7 @@ void main(void) {
         // Inertia when slowing down
         // TODO: make state specific.
         // TODO: Implement target speed instead of only targeting to 0
-        if(a_intent->dir == DIR_NONE)
+        if(actor_intent_dir[i] == DIR_NONE)
         {
           tmp_target_speed_x = 0;
         }
@@ -2197,7 +2207,7 @@ void main(void) {
           *a_speed_y=tmp_speed_y_value;
         }
 
-        a_intent->attack = false;
+        actor_intent_attack[i] = false;
         a_state->current_action=cur_action;
         ++action_frames;
         a_state->current_action_frames=MIN(action_frames,255);
@@ -2205,7 +2215,7 @@ void main(void) {
       if(i<NUM_ACTORS)
       {
         a_state++;
-        a_intent++;
+        //!a_intent++;
         a_params++;
         a_speed_x++;
         a_speed_y++;
@@ -2241,7 +2251,7 @@ void main(void) {
     // Actor State and intent physics
     
     a_state=actor_state;
-    a_intent=actor_intent;
+    //a_intent=actor_intent;
     a_params=actor_params;
     a_speed_x=actor_speedx;
     a_speed_y=actor_speedy;
@@ -2601,12 +2611,12 @@ void main(void) {
                 if(falling 
                    && grab_box_y>=platform_y1[j]
                    && grab_box_y<=platform_y2[j]
-                   && !a_intent->jump 
-                   && !a_intent->fast_fall 
-                   && !a_intent->crouch // drop
+                   && !actor_intent_jump[i] 
+                   && !actor_intent_fast_fall[i] 
+                   && !actor_intent_crouch[i] // drop
                    )
                 {
-                  if(a_intent->dir!=DIR_LEFT // right+neutral dir
+                  if(actor_intent_dir[i]!=DIR_LEFT // right+neutral dir
                      && grab_box_x2>platform_x1[j]
                      && grab_box_x1<platform_x1[j]
                     )
@@ -2618,7 +2628,7 @@ void main(void) {
                     a_state->facing_dir = DIR_RIGHT;
                     on_ground = true;
                   }
-                  else if(a_intent->dir!=DIR_RIGHT // left + neutral dir
+                  else if(actor_intent_dir[i]!=DIR_RIGHT // left + neutral dir
                      && grab_box_x1<platform_x2[j]
                      && grab_box_x2>platform_x2[j])
                   {
@@ -2797,7 +2807,7 @@ void main(void) {
             {
               *a_sprite = char1airneutral_sprites[sprite_var];
             }
-            else if(a_intent->fast_fall) // Todo: use state instead of intent.
+            else if(actor_intent_fast_fall[i]) // Todo: use state instead of intent.
             {
               *a_sprite = char1fast_fall_sprites[sprite_var];
             }
@@ -2898,7 +2908,7 @@ void main(void) {
       if(i<NUM_ACTORS)
       {
         a_state++;
-        a_intent++;
+        //!a_intent++;
         a_params++;
         a_speed_x++;
         a_speed_y++;
