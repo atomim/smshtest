@@ -455,9 +455,7 @@ byte platform_can_fall_through[NUM_PLATFORMS];
 #pragma bss-name (push,"ZEROPAGE")
 #pragma data-name(push,"ZEROPAGE")
 struct state* a_state;
-struct intent* a_intent;
 struct params* a_params;
-//struct platform* cur_platform;
 struct effect* current_effect;
 short int* a_speed_x;
 short int* a_speed_y;
@@ -646,6 +644,15 @@ void update_all_hud(void)
             actor_state[i].damage = damage;
         }
         
+        // Cap damage to DED*1.25 to avoid overflows.
+        // If base damage needs to be more than 54, either drop (byte) 
+        // or avoid the overvflow with shifts.
+        if(damage >=200) 
+        {
+       	    damage = 200;
+            actor_state[i].damage = damage;
+        }
+        
         if (damage >= 160) {
             // "DED" for dead
             vram[hud_tens_offset[i]] = 'D';
@@ -747,12 +754,11 @@ void update_debug_info2(byte /*player*/,struct vram_inst* inst)
   inst->_1_lda_val = 0x30+a_state->current_attack_frames_left;
   inst++;
   
-  //a_intent=&actor_intent[player];//dummy
   
-  //inst->_1_lda_val = dir_to_char[a_intent->dir];
+  //inst->_1_lda_val = dir_to_char[actor_intent_dir[player]];
   //inst++;
   /*
-  if(a_intent->jump)
+  if(actor_intent_jump[player])
   {
     inst->_1_lda_val = 'J';
   }
@@ -762,7 +768,7 @@ void update_debug_info2(byte /*player*/,struct vram_inst* inst)
   }
   inst++;
   
-  if(a_intent->crouch)
+  if(actor_intent_crouch[player])
   {
     inst->_1_lda_val = 'C';
   }
@@ -772,7 +778,7 @@ void update_debug_info2(byte /*player*/,struct vram_inst* inst)
   }
   inst++;
   
-  if(a_intent->fast_fall)
+  if(actor_intent_fast_fall[player])
   {
     inst->_1_lda_val = 'F';
   }
@@ -865,8 +871,6 @@ void simulate_player(unsigned char num)
   byte actor_center_x=(byte)(actor_x[num]+8);
   
   Assert(num>NUM_ACTORS);
-
-  a_intent=intentlookup[num];
   
   // Balance chances based on amount of ai's
   // Todo: convert to switch-case for a tiny bit better perf.
@@ -1058,7 +1062,6 @@ void simulate_player(unsigned char num)
      
 
     }
-    //cur_platform++;
   }
   {
     switch(r128)
@@ -1121,7 +1124,7 @@ void simulate_player(unsigned char num)
         break;
       case 11:
       case 12:
-        //a_intent->attack = true;
+        //actor_intent_attack[num] = true;
         //break;
       case 13:
       case 14:
@@ -1253,8 +1256,6 @@ void simulate_player_new(unsigned char num)
   unsigned char r128;
 
   Assert(num>NUM_ACTORS);
-
-  a_intent=intentlookup[num];
   
   // Balance chances based on amount of ai's
   // Todo: convert to switch-case for a tiny bit better perf.
@@ -1421,12 +1422,6 @@ void main(void) {
   
   current_effect=effects;
   
-  //!a_intent=actor_intent;    
-  //!for(i =0;i<NUM_ACTORS;i++)
-  //!{
-  //!   intentlookup[i]=a_intent;a_intent++;
-  //!}
-
   //
   // INIT
   //
@@ -1883,7 +1878,6 @@ void main(void) {
     
     // Reset pointers for first iteration. This is faster than indexing.
     a_state=actor_state;
-    //!a_intent=actor_intent;
     a_params=actor_params;
     a_speed_x=actor_speedx;
     a_speed_y=actor_speedy;
@@ -2215,35 +2209,12 @@ void main(void) {
       if(i<NUM_ACTORS)
       {
         a_state++;
-        //!a_intent++;
         a_params++;
         a_speed_x++;
         a_speed_y++;
       }
     }
     
-    
-    log_precalc_hitboxes(0);
-    // Precalc hitboxes of the frame
-    /*
-    a_state=actor_state;
-    a_intent=actor_intent;
-    a_params=actor_params;
-    a_speed_x=actor_speedx;
-    a_speed_y=actor_speedy;
-    for (i=0; i<NUM_ACTORS; i++) 
-    {
-      if(i<NUM_ACTORS)
-      {
-        a_state++;
-        a_intent++;
-        a_params++;
-        a_speed_x++;
-        a_speed_y++;
-      }
-      // todo:
-    }
-    */
     log_precalc_hitboxes(0);
     
     // 12
@@ -2251,7 +2222,6 @@ void main(void) {
     // Actor State and intent physics
     
     a_state=actor_state;
-    //a_intent=actor_intent;
     a_params=actor_params;
     a_speed_x=actor_speedx;
     a_speed_y=actor_speedy;
@@ -2387,7 +2357,7 @@ void main(void) {
                     //attack_force_x=20+isCrouching?a_state->damage>>1:a_state->damage;
                     //attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
                     attack_force_x=(byte)(30+a_state->damage);
-                    attack_force_y=-(byte)((byte)(30+a_state->damage)<<1);
+                    attack_force_y=-((byte)(30+a_state->damage)<<1);
                     scroll_nudge_x+=2;
                     damage=11;
                     break;
@@ -2400,7 +2370,7 @@ void main(void) {
                     //attack_force_x=-20-(isCrouching?a_state->damage>>1:a_state->damage);
                     //attack_force_y=-(20+(isCrouching?a_state->damage:a_state->damage<<1));
                     attack_force_x=-(byte)(30+a_state->damage);
-                    attack_force_y=-(byte)((byte)(30+a_state->damage)<<1);
+                    attack_force_y=-((byte)(30+a_state->damage)<<1);
                     scroll_nudge_x-=2;
                     damage=11;
                     break;
@@ -2410,8 +2380,11 @@ void main(void) {
                     current_effect->x=attack_x1+2;
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
-                    attack_force_x=(byte)(50+a_state->damage);
-                    attack_force_y=-(byte)((byte)(20+a_state->damage)<<1);
+                    // Must drop (byte) if using values over 55 due to overflow. 
+                    // Damage capped at 200 (BCD DED * 1.25)
+                    // See update_all_hud()
+                    attack_force_x=(byte)(50+a_state->damage); 
+                    attack_force_y=-((byte)(20+a_state->damage)<<1);
                     damage=7;
                     scroll_nudge_x+=2;
                     break;
@@ -2422,7 +2395,7 @@ void main(void) {
                     current_effect->y=attack_y1;
                     current_effect->isNew=true;
                     attack_force_x=-(byte)(50+a_state->damage);
-                    attack_force_y=-(byte)((byte)(20+a_state->damage)<<1);
+                    attack_force_y=-((byte)(20+a_state->damage)<<1);
                     scroll_nudge_x-=2;
                     damage=7;
                     break;
@@ -2449,7 +2422,7 @@ void main(void) {
                 else
                 {
                   actor_speedy[i]=attack_force_y<<1;
-                  actor_speedx[i]=(byte)(attack_force_x<<2); // eliminate extra jsr
+                  actor_speedx[i]=(attack_force_x<<2); // eliminate extra jsr
                 }
    
                 current_effect->frames=6;
@@ -2557,10 +2530,6 @@ void main(void) {
           for(j=0;j<p_count;++j) // heavy on air. 2,5 scanlines min, 5.5 max?
           {
             bool skip_due_to_fall_through;
-            //byte cur_platform_x1 = platform_x1[j];
-            //byte cur_platform_x2 = platform_x2[j];
-            //byte cur_platform_y1 = platform_y1[j];
-            //byte cur_platform_y2 = platform_y2[j];
 
             log_collision_calculation(0);
 
@@ -2570,7 +2539,6 @@ void main(void) {
 
             speed_y_in_pixels=(*a_speed_y>>8);
             on_platform=
-               //actor_feet_y>=cur_platform_y1-speed_y_in_pixels // fix promotion to 16bit.
               (byte)(actor_feet_y+speed_y_in_pixels)>=platform_y1[j]
                && actor_feet_y<=platform_y2[j]
                && actor_feet_x>platform_x1[j]
@@ -2825,7 +2793,8 @@ void main(void) {
       {
         bool do_respawn=false;
         if(actor_prev_y[i]>actor_y[i]
-           && actor_speedy[i]>0)
+           && actor_speedy[i]>0
+           )
         {
           current_effect->type=EXPLOSION_VERTICAL;
           current_effect->variant=4+i; // apply flip and player color
@@ -2846,7 +2815,8 @@ void main(void) {
           do_respawn=true;
         }
         else if(actor_prev_x[i]>actor_x[i]
-                && actor_speedx[i]>0)
+                && actor_speedx[i]>0
+                && actor_x[i] >240)
         {
           current_effect->type=EXPLOSION_HORIZONTAL;
           current_effect->variant=4+i; // apply flip and player color
@@ -2867,7 +2837,8 @@ void main(void) {
           do_respawn=true;
         }
         else if( actor_prev_x[i]<actor_x[i]
-                && actor_speedx[i]<0)
+                && actor_speedx[i]<0
+                && actor_x[i] < 16)
         {
           current_effect->type=EXPLOSION_HORIZONTAL;
           current_effect->variant=0+i; // apply player color
@@ -2908,7 +2879,6 @@ void main(void) {
       if(i<NUM_ACTORS)
       {
         a_state++;
-        //!a_intent++;
         a_params++;
         a_speed_x++;
         a_speed_y++;
