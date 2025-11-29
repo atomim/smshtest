@@ -376,16 +376,18 @@ struct params{
   short unsigned int fast_fall;
 };
 
+
+// Converted to arrays.
+/*
 struct platform{
   byte x1;
   byte x2;
   byte y1;
   byte y2;
-  byte type;
-  byte height;
   byte can_fall_through;
   byte has_edge;
 };
+*/
 
 enum effect_type
 {
@@ -425,7 +427,14 @@ void *actor_sprite[NUM_ACTORS];// Which sprite to show
 struct state actor_state[NUM_ACTORS];
 struct intent actor_intent[NUM_ACTORS];
 struct params actor_params[NUM_ACTORS]; // Todo: move to rom
-struct platform platforms[NUM_PLATFORMS];
+//struct platform platforms[NUM_PLATFORMS];
+
+byte platform_x1[NUM_PLATFORMS];
+byte platform_x2[NUM_PLATFORMS];
+byte platform_y1[NUM_PLATFORMS];
+byte platform_y2[NUM_PLATFORMS];
+byte platform_has_edge[NUM_PLATFORMS];
+byte platform_can_fall_through[NUM_PLATFORMS];
 
 
 // 3
@@ -436,7 +445,7 @@ struct platform platforms[NUM_PLATFORMS];
 struct state* a_state;
 struct intent* a_intent;
 struct params* a_params;
-struct platform* cur_platform;
+//struct platform* cur_platform;
 struct effect* current_effect;
 short int* a_speed_x;
 short int* a_speed_y;
@@ -502,22 +511,21 @@ byte p_count=0;
 
 void addp(byte type, byte x, byte y, byte len)
 {
-  platforms[p_count].x1=x*8;
-  platforms[p_count].x2=(x+len)*8;
-  platforms[p_count].type=type;
+  platform_x1[p_count]=x*8;
+  platform_x2[p_count]=(x+len)*8;
   switch(type)
   {
     case 0:
-        platforms[p_count].y1=y*8-2;
-        platforms[p_count].y2=(y+1)*8;
-        platforms[p_count].can_fall_through=false;
-        platforms[p_count].has_edge=true;
+        platform_y1[p_count] = y*8-2;
+        platform_y2[p_count] = (y+1)*8;
+        platform_can_fall_through[p_count]=false;
+        platform_has_edge[p_count]=true;
       break;
     case 1:
-        platforms[p_count].y1=y*8+4-2;
-        platforms[p_count].y2=(y+1)*8;
-        platforms[p_count].can_fall_through=true;
-        platforms[p_count].has_edge=false;
+        platform_y1[p_count] = y*8+4-2;
+        platform_y2[p_count] = (y+1)*8;
+        platform_can_fall_through[p_count]=true;
+        platform_has_edge[p_count]=false;
       break;
   }
   ++p_count;
@@ -868,16 +876,15 @@ void simulate_player(unsigned char num)
   
   //unsigned char closest_platform = 0;
   // find closest platforms for AI
-  cur_platform=platforms;
   for(j=0;j<p_count;++j)
   {
-    bool isLeft = actor_center_x>cur_platform->x1;
-    bool isRight = actor_center_x<cur_platform->x2;
+    bool isLeft = actor_center_x>platform_x1[j];
+    bool isRight = actor_center_x<platform_x2[j];
 
     if(isLeft&isRight)
     {
       bool isUnder;
-      isUnder=(byte)(actor_y[num]+17)>=cur_platform->y1;
+      isUnder=(byte)(actor_y[num]+17)>=platform_y1[j];
       if(isUnder)
       {
         platform_id_under=j;
@@ -1003,7 +1010,7 @@ void simulate_player(unsigned char num)
      
 
     }
-    cur_platform++;
+    //cur_platform++;
   }
   {
     switch(r128)
@@ -1258,17 +1265,16 @@ void simulate_player_new(unsigned char num)
   
   //unsigned char closest_platform = 0;
   // find closest platforms for AI
-  cur_platform=platforms;
   for(j=0;j<p_count;++j)
   {
     // Todo use (byte) to optimize
-    bool isLeft = actor_x[num]+8>cur_platform->x1;
-    bool isRight = actor_x[num]+8<cur_platform->x2;
+    bool isLeft = actor_x[num]+8>platform_x1[j];
+    bool isRight = actor_x[num]+8<platform_x2[j];
 
     if(isLeft&isRight)
     {
       bool isUnder;
-      isUnder=actor_y[num]+17>=cur_platform->y1;
+      isUnder=actor_y[num]+17>=platform_y1[j];
       if(isUnder)
       {
         platform_id_under=j;
@@ -2498,17 +2504,15 @@ void main(void) {
 
           // Collisions and related calculation
 
-          cur_platform=platforms;
-
           on_ground = false;
           on_edge = false;
           for(j=0;j<p_count;++j) // heavy on air. 2,5 scanlines min, 5.5 max?
           {
             bool skip_due_to_fall_through;
-            byte cur_platform_x1 = cur_platform->x1;
-            byte cur_platform_x2 = cur_platform->x2;
-            byte cur_platform_y1 = cur_platform->y1;
-            byte cur_platform_y2 = cur_platform->y2;
+            //byte cur_platform_x1 = platform_x1[j];
+            //byte cur_platform_x2 = platform_x2[j];
+            //byte cur_platform_y1 = platform_y1[j];
+            //byte cur_platform_y2 = platform_y2[j];
 
             log_collision_calculation(0);
 
@@ -2519,34 +2523,34 @@ void main(void) {
             speed_y_in_pixels=(*a_speed_y>>8);
             on_platform=
                //actor_feet_y>=cur_platform_y1-speed_y_in_pixels // fix promotion to 16bit.
-              (byte)(actor_feet_y+speed_y_in_pixels)>=cur_platform_y1
-               && actor_feet_y<=cur_platform_y2
-               && actor_feet_x>cur_platform_x1
-               && actor_feet_x<cur_platform_x2;
+              (byte)(actor_feet_y+speed_y_in_pixels)>=platform_y1[j]
+               && actor_feet_y<=platform_y2[j]
+               && actor_feet_x>platform_x1[j]
+               && actor_feet_x<platform_x2[j];
 
             // Side collision and grab
             if(!on_platform)
             {
-              if(cur_platform->has_edge)
+              if(platform_has_edge[j])
               {
                 byte grab_box_x1;
                 byte grab_box_x2;
                 byte grab_box_y;
 
                 // collision to edge
-                if(actor_y[i]<cur_platform_y2 
-                   && actor_feet_y>cur_platform_y1
+                if(actor_y[i]<platform_y2[j]
+                   && actor_feet_y>platform_y1[j]
                   )
                 {
-                  if(actor_feet_x>cur_platform_x1
-                    && actor_feet_x<(byte)(cur_platform_x1+8))
+                  if(actor_feet_x>platform_x1[j]
+                    && actor_feet_x<(byte)(platform_x1[j]+8))
                   {
-                    actor_x[i]=cur_platform_x1-8;
+                    actor_x[i]=platform_x1[j]-8;
                   } 
-                  else if (actor_feet_x<cur_platform_x2
-                           && actor_feet_x>(byte)(cur_platform_x2-8))
+                  else if (actor_feet_x<platform_x2[j]
+                           && actor_feet_x>(byte)(platform_x2[j]-8))
                   {
-                    actor_x[i]=cur_platform_x2-8;
+                    actor_x[i]=platform_x2[j]-8;
                   }
                 }
 
@@ -2557,32 +2561,32 @@ void main(void) {
                 grab_box_y=actor_y[i];
 
                 if(falling 
-                   && grab_box_y>=cur_platform_y1
-                   && grab_box_y<=cur_platform_y2
+                   && grab_box_y>=platform_y1[j]
+                   && grab_box_y<=platform_y2[j]
                    && !a_intent->jump 
                    && !a_intent->fast_fall 
                    && !a_intent->crouch // drop
                    )
                 {
                   if(a_intent->dir!=DIR_LEFT // right+neutral dir
-                     && grab_box_x2>cur_platform_x1
-                     && grab_box_x1<cur_platform_x1
+                     && grab_box_x2>platform_x1[j]
+                     && grab_box_x1<platform_x1[j]
                     )
                   {
                     *a_speed_x=0;*a_speed_y=0;
-                    actor_y[i]=cur_platform_y1;
-                    actor_x[i]=cur_platform_x1-11;
+                    actor_y[i]=platform_y1[j];
+                    actor_x[i]=platform_x1[j]-11;
                     a_state->current_action = ACTION_HANGING_GROUND;
                     a_state->facing_dir = DIR_RIGHT;
                     on_ground = true;
                   }
                   else if(a_intent->dir!=DIR_RIGHT // left + neutral dir
-                     && grab_box_x1<cur_platform_x2
-                     && grab_box_x2>cur_platform_x2)
+                     && grab_box_x1<platform_x2[j]
+                     && grab_box_x2>platform_x2[j])
                   {
                     *a_speed_x=0;*a_speed_y=0;
-                    actor_y[i]=cur_platform_y1;
-                    actor_x[i]=cur_platform_x2-5;
+                    actor_y[i]=platform_y1[j];
+                    actor_x[i]=platform_x2[j]-5;
                     a_state->current_action = ACTION_HANGING_GROUND;
                     a_state->facing_dir = DIR_LEFT;
                     on_ground = true;
@@ -2595,14 +2599,14 @@ void main(void) {
               // normal collision
               if(falling)
               {
-                skip_due_to_fall_through=(cur_platform->can_fall_through && (a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered));
+                skip_due_to_fall_through=(platform_can_fall_through[j] && (a_state->current_action==ACTION_CROUCHING_GROUND || a_state->fall_through_triggered));
                 if(skip_due_to_fall_through)
                 {
                   a_state->fall_through_triggered = true;
                 }
                 else
                 {
-                  actor_y[i] = cur_platform_y1-17;
+                  actor_y[i] = platform_y1[j]-17;
                   *a_speed_y = 0;
                   actor_yf[i] = 0;
                   on_ground = true;
@@ -2610,15 +2614,14 @@ void main(void) {
               }
               // todo: split condition to improve perf
               // on_edge state update based on facing dir
-              if(((a_state->facing_dir == DIR_LEFT && actor_feet_x<(byte)(cur_platform_x1+6)) 
-                  || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>(byte)(cur_platform_x2-6)))
+              if(((a_state->facing_dir == DIR_LEFT && actor_feet_x<(byte)(platform_x1[j]+6)) 
+                  || (a_state->facing_dir == DIR_RIGHT && actor_feet_x>(byte)(platform_x2[j]-6)))
                  )
               {
                 on_edge=true;
               }
             }
 
-            cur_platform++;
 
           }
 
