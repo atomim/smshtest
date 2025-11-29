@@ -412,7 +412,7 @@ byte current_effect_index;
 
 // 2
 
-#define NUM_ACTORS 3
+#define NUM_ACTORS 4
 #define NUM_PLATFORMS 4
 
 byte actor_x[NUM_ACTORS];      // Position
@@ -576,7 +576,7 @@ void reset_level_and_bg()
   vram_write(ATTRIBUTE_TABLE, sizeof(ATTRIBUTE_TABLE));
 
 }
-
+/*
 void update_player_status(struct vram_inst* inst)
 {
   byte damage = a_state->damage;
@@ -610,6 +610,44 @@ void update_player_status(struct vram_inst* inst)
     inst->_1_lda_val = '%';
   }
 }
+*/
+// Pre-calculated byte offsets into vram_line2
+// Formula: (4 + player*7) * 5 + 1 (offset of _1_lda_val within struct)
+const byte hud_tens_offset[4] = { 21, 56, 91, 126 };
+const byte hud_ones_offset[4] = { 26, 61, 96, 131 };
+const byte hud_pct_offset[4]  = { 31, 66, 101, 136 };
+
+void update_all_hud(void)
+{
+    byte i, damage;
+    byte* vram = (byte*)vram_line2;  // Cache cast once
+    
+    for (i = 0; i < NUM_ACTORS; i++) {
+        if (actor_state[i].current_action == ACTION_SPAWNING)
+            continue;
+        
+        damage = actor_state[i].damage;
+        
+        // BCD adjustment
+        if ((damage & 0x0F) >= 10) {
+            damage += 6;
+            actor_state[i].damage = damage;
+        }
+        
+        if (damage >= 160) {
+            // "DED" for dead
+            vram[hud_tens_offset[i]] = 'D';
+            vram[hud_ones_offset[i]] = 'E';
+            vram[hud_pct_offset[i]]  = 'D';
+        } else {
+            // "XX%" for damage
+            vram[hud_tens_offset[i]] = '0' + (damage >> 4);
+            vram[hud_ones_offset[i]] = '0' + (damage & 0x0F);
+            vram[hud_pct_offset[i]]  = '%';
+        }
+    }
+}
+
 
 void update_player_wins(struct vram_inst* inst)
 {
@@ -3038,9 +3076,11 @@ void main(void) {
       if (oam_id!=0) oam_hide_rest(oam_id);
     }
     
-    {
+    update_all_hud();
+    /*{
       a_state=actor_state;
       //update_debug_info2(0,vram_line);
+      //update_player_status(vram_line2+4);
       update_player_status(vram_line2+4);
 
       #if NUM_ACTORS >1
@@ -3060,7 +3100,7 @@ void main(void) {
       //update_debug_info2(3,vram_line+23);
       update_player_status(vram_line2+25);
       #endif
-    }
+    }*/
     
     
     
