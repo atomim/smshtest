@@ -14,6 +14,10 @@ for the nametable. We copy it from an array in ROM to video RAM.
 
 #include "opt_macros.h"
 
+#include "fourscore.h"
+
+#include "avg8.h"
+
 //#defi ne CFGFILE test
 
 // link the pattern table into CHR ROM
@@ -46,6 +50,8 @@ const char PALETTE[33] = {
   0x0D,0x17,0x26,0x00	// sprite palette 3
 
 };
+
+const char sky_default = 0x1C;
 
 const signed char hit_lag_random_shake[32] = 
 {
@@ -1473,7 +1479,7 @@ void main(void) {
   //
   while (1) {
     unsigned char oam_id; // sprite ID
-    byte background_color=0x00;//0x13;//0x03;//0x1c;
+    byte background_color=sky_default;//0x00;//0x13;//0x03;//0x1c;
     bool resetLives=false;
     byte deadCount=0;
     if(scroll_nudge_x>0)
@@ -1483,9 +1489,17 @@ void main(void) {
     else if(scroll_nudge_x<0)
     {
       scroll_nudge_x++;
+#include "avg8.h"
+
     }
     
     APU.pulse[0].control=0xff;
+    
+    // Test fourscore
+    
+    //last_pad = fourscore_pad1;
+    //fourscore_read();
+    // pad = fourscore_pad1;
     
     // Controls
     last_pad = pad;
@@ -2816,7 +2830,7 @@ void main(void) {
         }
         else if(actor_prev_x[i]>actor_x[i]
                 && actor_speedx[i]>0
-                && actor_x[i] >240)
+                && actor_prev_x[i] >(255-32))
         {
           current_effect->type=EXPLOSION_HORIZONTAL;
           current_effect->variant=4+i; // apply flip and player color
@@ -2838,7 +2852,7 @@ void main(void) {
         }
         else if( actor_prev_x[i]<actor_x[i]
                 && actor_speedx[i]<0
-                && actor_x[i] < 16)
+                && actor_prev_x[i] < 32)
         {
           current_effect->type=EXPLOSION_HORIZONTAL;
           current_effect->variant=0+i; // apply player color
@@ -3140,3 +3154,5 @@ void main(void) {
 
   }
 }
+
+//#link "fourscore.s"
