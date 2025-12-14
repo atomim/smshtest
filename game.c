@@ -573,8 +573,8 @@ void reset_level_and_bg()
   vram_fill(0x07, 9);   // Bottom right 1
   vram_fill(0x08, 11);  // Bottom left 2
   vram_fill(0x04, 12);  // Bottom center 2
-  vram_fill(0x08, 11);  // Bottom right 2
-  vram_fill(0x04, 32*5);// Bottom dark
+  vram_fill(0x08, 10);  // Bottom right 2
+  vram_fill(0x04, 32*1);// Bottom dark
   
   // reset platforms count
   p_count = 0;
@@ -628,10 +628,10 @@ void update_player_status(struct vram_inst* inst)
 }
 */
 // Pre-calculated byte offsets into vram_line2
-// Formula: (4 + player*7) * 5 + 1 (offset of _1_lda_val within struct)
-const byte hud_tens_offset[4] = { 21, 56, 91, 126 };
-const byte hud_ones_offset[4] = { 26, 61, 96, 131 };
-const byte hud_pct_offset[4]  = { 31, 66, 101, 136 };
+// Formula: (5 + player*7) * 5 + 1 (offset of _1_lda_val within struct)
+const byte hud_tens_offset[4] = { 26, 61, 96, 131 };
+const byte hud_ones_offset[4] = { 31, 66, 101, 136 };
+const byte hud_pct_offset[4]  = { 36, 71, 106, 141 };
 
 void update_all_hud(void)
 {
@@ -1390,10 +1390,10 @@ void initialize_player(byte num, byte type, byte x, byte y)
 char clock=0;
 void __fastcall__ irq_nmi_callback(void) 
 {
-  vram_adr(NTADR_A(1,26));
+  vram_adr(NTADR_A(0,26));
   __asm__("jsr %v",vram_line);
   //vram_adr(NTADR_A(1,26));
-  vram_adr(NTADR_A(1,25));
+  vram_adr(NTADR_A(0,25));
   __asm__("jsr %v",vram_line2);
   //print_state(0,NTADR_A(1,27));
 
@@ -1482,6 +1482,8 @@ void main(void) {
     byte background_color=sky_default;//0x00;//0x13;//0x03;//0x1c;
     bool resetLives=false;
     byte deadCount=0;
+    byte x_avg_tmp=0;
+    byte camera_offset_x;
     if(scroll_nudge_x>0)
     {
     scroll_nudge_x--; //todo: move out of zp
@@ -1489,8 +1491,6 @@ void main(void) {
     else if(scroll_nudge_x<0)
     {
       scroll_nudge_x++;
-#include "avg8.h"
-
     }
     
     APU.pulse[0].control=0xff;
@@ -1930,7 +1930,9 @@ void main(void) {
         if(clock&0x02)pal_col((i<<2)+1+16,0x32);
       } else
       {
-
+        // Update average x for camera, reduced precision.
+	x_avg_tmp+=actor_x[i] >> 2;
+          
         cur_action=a_state->current_action;
         action_frames=a_state->current_action_frames;
         on_ground=ON_GROUND(cur_action);
@@ -2229,7 +2231,36 @@ void main(void) {
       }
     }
     
-    log_precalc_hitboxes(0);
+    // Count average and convert to screen x.
+    switch (4-deadCount) {
+      case 0: x_avg_tmp = 0;break;
+      case 1: x_avg_tmp = x_avg_tmp; break;
+      case 2: x_avg_tmp = x_avg_tmp << 1; break;
+      case 3: x_avg_tmp = x_avg_tmp + (x_avg_tmp>>2) + (x_avg_tmp>>4); break;
+      case 4: x_avg_tmp = x_avg_tmp; break;
+    }
+    x_avg_tmp = (x_avg_tmp >> 2) - 32;
+    // Clamp to ±16
+    if (x_avg_tmp < 128) {
+        // Positive side (0-31 range)
+        if (x_avg_tmp > 16) x_avg_tmp = 16;
+    } else {
+        // Negative side (224-255 range, i.e. -32 to -1)
+        if (x_avg_tmp < 240) x_avg_tmp = 240;  // 240 = -16 as byte
+    }
+    if( clock % 0x01 == 0){
+      // Smooth toward target (byte subtraction handles direction)
+      byte delta = x_avg_tmp - camera_offset_x;
+
+      // Deadzone: only move if delta > 1 or delta < 255 (i.e., -1)
+      if (delta > 1 && delta < 128) {
+          background_color = 1;
+          camera_offset_x++;  // target is right
+      } else if (delta > 128 && delta < 255) {
+          camera_offset_x--;  // target is left (delta is "negative")
+      }
+
+    }
     
     // 12
     
@@ -3005,16 +3036,16 @@ void main(void) {
       // draw and move all actors
       for (i=0; i<NUM_ACTORS; i++) 
       {
-        // TODO: add camera?
+        zp_x=actor_x[i]-camera_offset_x;
         if(a_state->lives!=0)
         {
           if(a_state->hit_lag_frames_left>0 && a_state->damage_vis_frames>0)
           {
-            oam_id = oam_meta_spr(actor_x[i]+hit_lag_random_shake[(clock+i<<2)&0x0f], actor_y[i]+hit_lag_random_shake[(clock+13+i<<2)&0x0f], oam_id, *a_sprite);
+            oam_id = oam_meta_spr((byte)(zp_x+hit_lag_random_shake[(clock+i<<2)&0x0f]), actor_y[i]+hit_lag_random_shake[(clock+13+i<<2)&0x0f], oam_id, *a_sprite);
           }
           else
           {
-            oam_id = oam_meta_spr(actor_x[i], actor_y[i], oam_id, *a_sprite);
+            oam_id = oam_meta_spr(zp_x, actor_y[i], oam_id, *a_sprite);
           }
         }
         a_sprite++;
@@ -3027,6 +3058,7 @@ void main(void) {
       for (i=0; i<NUM_ACTORS; i++) 
       {
         const unsigned char* curIcon;
+        char parallax_offset;
           
         if(a_state->isAI)
         {
@@ -3036,8 +3068,22 @@ void main(void) {
         {
           curIcon=*a_icon;
         }
-        zp_x=icon_pos_x[i];
-        oam_id = oam_meta_spr(zp_x+(a_state->damage_vis_frames>>2), 189-(a_state->damage_vis_frames), oam_id, curIcon);
+        
+        
+        if (camera_offset_x < 128) {
+          parallax_offset = camera_offset_x >> 3;
+        } else {
+          // Masks: >>1:0x80, >>2:0xC0, >>3:0xE0, >>4:0xF0 (Sign Extension)
+          parallax_offset = 0xE0 | (camera_offset_x >> 3);  // Preserve sign bits
+        }
+        
+
+        
+        zp_x=icon_pos_x[i]-camera_offset_x;
+        oam_id = oam_meta_spr(zp_x-parallax_offset+(a_state->damage_vis_frames>>2), 189-(a_state->damage_vis_frames), oam_id, curIcon);
+        
+        // move hearts on "behind" parallax plane and offset.
+        zp_x+=parallax_offset+11+2;
         
         if(!(a_state->current_action==ACTION_SPAWNING
           && a_state->current_action_frames&0x1))
@@ -3045,19 +3091,19 @@ void main(void) {
           switch(a_state->lives)
           {
             case 0:
-              oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives0_sprites[i]);
+              oam_id = oam_meta_spr(zp_x, 204, oam_id, char1lives0_sprites[i]);
               break;
             case 1:
-              oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives1_sprites[i]);
+              oam_id = oam_meta_spr(zp_x, 204, oam_id, char1lives1_sprites[i]);
               break;
             case 2:
-              oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives2_sprites[i]);
+              oam_id = oam_meta_spr(zp_x, 204, oam_id, char1lives2_sprites[i]);
               break;
             case 3:
-              oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives3_sprites[i]);
+              oam_id = oam_meta_spr(zp_x, 204, oam_id, char1lives3_sprites[i]);
               break;
             case 4:
-              oam_id = oam_meta_spr(zp_x+11, 204, oam_id, char1lives4_sprites[i]);
+              oam_id = oam_meta_spr(zp_x, 204, oam_id, char1lives4_sprites[i]);
               break;
           }
         }
@@ -3146,7 +3192,7 @@ void main(void) {
       clock=newclock;
 
       PPU.control=0b11000000;
-      PPU.scroll=-scroll_nudge_x+0x00;
+      PPU.scroll=-scroll_nudge_x+0x00+camera_offset_x;
       PPU.scroll=0x02;
       PPU.mask =0b00011110;
     }
