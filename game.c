@@ -691,12 +691,28 @@ void update_player_wins(struct vram_inst* inst)
     inst++;
     inst->_1_lda_val = ' ';
     inst++;
+    inst->_1_lda_val = ' ';
+    inst++;
   }
   else
   {
-    inst->_1_lda_val = '0'+(wins>>4);
-    inst++;
-    inst->_1_lda_val = '0'+(wins&0b00001111);
+    if(wins>>4<1)
+    {
+      inst->_1_lda_val = '0'+(wins&0b00001111);
+      inst++;
+      inst->_1_lda_val = 0x81;
+      inst++;
+      inst->_1_lda_val = ' ';
+    }
+    else
+    {
+      inst->_1_lda_val = ' ';+(wins>>4);
+      inst++;
+      inst->_1_lda_val = '0'+(wins&0b00001111);
+      inst++;
+      inst->_1_lda_val = 0x81;
+    }
+    
   }
 }
 
@@ -1691,21 +1707,21 @@ void main(void) {
       
       {
         a_state=actor_state;
-        update_player_wins(vram_line+5);
+        update_player_wins(vram_line+6);
         
         #if NUM_ACTORS >1
         a_state++;
-        update_player_wins(vram_line+12);
+        update_player_wins(vram_line+13);
         #endif
 
         #if NUM_ACTORS >2
         a_state++;
-        update_player_wins(vram_line+19);
+        update_player_wins(vram_line+20);
         #endif
 
         #if NUM_ACTORS >3
         a_state++;
-        update_player_wins(vram_line+26);
+        update_player_wins(vram_line+27);
         #endif
       }
     
@@ -2254,7 +2270,6 @@ void main(void) {
 
       // Deadzone: only move if delta > 1 or delta < 255 (i.e., -1)
       if (delta > 1 && delta < 128) {
-          background_color = 1;
           camera_offset_x++;  // target is right
       } else if (delta > 128 && delta < 255) {
           camera_offset_x--;  // target is left (delta is "negative")
@@ -2988,7 +3003,8 @@ void main(void) {
           }
           if(visible)
           {
-            oam_id = oam_meta_spr(current_effect->x, current_effect->y, oam_id, *a_sprite);
+            zp_x = current_effect->x-camera_offset_x;
+            oam_id = oam_meta_spr(zp_x, current_effect->y, oam_id, *a_sprite);
           }
           if(current_effect->isNew)
           {
@@ -3029,6 +3045,8 @@ void main(void) {
     
     // Update Actor Sprites
     {
+      char parallax_offset;
+      char parallax_offset2;
       a_state=actor_state;
       a_sprite=actor_sprite;
       // start with OAMid/sprite 0
@@ -3055,10 +3073,22 @@ void main(void) {
       
       a_icon=char1icon_sprites;
       a_iconAI=AIicon_sprites;
+      
+      // Scale parallax correctly
+      if (camera_offset_x < 128) {
+        parallax_offset = camera_offset_x >> 4;
+        parallax_offset2 = (byte)(camera_offset_x+(byte)(camera_offset_x>>1)) >> 4;
+      } else {
+        // Masks: >>1:0x80, >>2:0xC0, >>3:0xE0, >>4:0xF0 (Sign Extension)
+        parallax_offset = 0xF0 | (camera_offset_x >> 4);  // Preserve sign bits
+      	parallax_offset2 = 0xF0 | ((byte)(camera_offset_x+(byte)(0xF0 | camera_offset_x>>1)) >> 4);  // Preserve sign bits
+
+      }
+      
+
       for (i=0; i<NUM_ACTORS; i++) 
       {
         const unsigned char* curIcon;
-        char parallax_offset;
           
         if(a_state->isAI)
         {
@@ -3069,18 +3099,9 @@ void main(void) {
           curIcon=*a_icon;
         }
         
-        
-        if (camera_offset_x < 128) {
-          parallax_offset = camera_offset_x >> 3;
-        } else {
-          // Masks: >>1:0x80, >>2:0xC0, >>3:0xE0, >>4:0xF0 (Sign Extension)
-          parallax_offset = 0xE0 | (camera_offset_x >> 3);  // Preserve sign bits
-        }
-        
 
-        
         zp_x=icon_pos_x[i]-camera_offset_x;
-        oam_id = oam_meta_spr(zp_x-parallax_offset+(a_state->damage_vis_frames>>2), 189-(a_state->damage_vis_frames), oam_id, curIcon);
+        oam_id = oam_meta_spr(zp_x-parallax_offset2+(a_state->damage_vis_frames>>2), 189-(a_state->damage_vis_frames), oam_id, curIcon);
         
         // move hearts on "behind" parallax plane and offset.
         zp_x+=parallax_offset+11+2;
