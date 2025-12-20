@@ -50,7 +50,7 @@ const char PALETTE[33] = {
   0x0F,0x02,0x10,0x00,	// background palette 0
   0x0F,0x03,0x2D,0x00,	// background palette 1
   0x0F,0x04,0x10,0x00,	// background palette 2
-  0x0F,0x18,0x10,0x00,       // background palette 3
+  0x0F,0x0A,0x10,0x00,       // background palette 3
     
   0x0D,0x17,0x32,0x00,	// sprite palette 0
   0x0D,0x17,0x27,0x00,	// sprite palette 1
@@ -234,34 +234,28 @@ const unsigned char name[]={\
 
 
 
-// Replace sprites with oam_ultra
-//DEF_METASPRITE_2x2_VARS(AIicon,0xc8);
-//DEF_METASPRITE_2x2_VARS(char1icon,0xd0);
+
 #define AI_ICON 0xc8
 #define CHAR1_ICON 0xd0
 
-//DEF_METASPRITE_1x1_VARS(char1lives4,0x8c);
-//DEF_METASPRITE_1x1_VARS(char1lives3,0x8d);
-//DEF_METASPRITE_1x1_VARS(char1lives2,0x8e);
-//DEF_METASPRITE_1x1_VARS(char1lives1,0x8f);
-//DEF_METASPRITE_1x1_VARS(char1lives0,0x8b);
 #define LIVES0 0x8b
 #define LIVES1 0x8f
 #define LIVES2 0x8e
 #define LIVES3 0x8d
 #define LIVES4 0x8c
 
-DEF_METASPRITE_2x2_VARS(char1neutral,0xd4);
-DEF_METASPRITE_2x2_VARS(char1stand,0xd8);
-DEF_METASPRITE_2x2_VARS(char1crouch,0xdc);
-DEF_METASPRITE_2x2_VARS(char1run,0xec);
-DEF_METASPRITE_2x2_VARS(char1jump,0xe0);
-DEF_METASPRITE_2x2_VARS(char1fast_fall,0xe4);
-DEF_METASPRITE_2x2_VARS(char1dash,0xe8);
-DEF_METASPRITE_2x2_VARS(char1ledge,0xf0);
-DEF_METASPRITE_2x2_VARS(char1sway,0xf4);
-DEF_METASPRITE_2x2_VARS(char1airneutral,0xf8);
-DEF_METASPRITE_2x2_VARS(char1flinch,0xfc);
+// Character 1 tiles (2x2 metasprites)
+#define CHAR1_NEUTRAL    0xd4
+#define CHAR1_STAND      0xd8
+#define CHAR1_CROUCH     0xdc
+#define CHAR1_RUN        0xec
+#define CHAR1_JUMP       0xe0
+#define CHAR1_FAST_FALL  0xe4
+#define CHAR1_DASH       0xe8
+#define CHAR1_LEDGE      0xf0
+#define CHAR1_SWAY       0xf4
+#define CHAR1_AIRNEUTRAL 0xf8
+#define CHAR1_FLINCH     0xfc
 
 DEF_METASPRITE_1x1_VARS(small_hit,0x80);
 DEF_METASPRITE_2x2_VARS(horizontal_explosion,0xb0);
@@ -485,7 +479,10 @@ byte actor_prev_x[NUM_ACTORS]; // Perevious pos to track going outside
 byte actor_prev_y[NUM_ACTORS];
 short int actor_speedx[NUM_ACTORS]; // Speed
 short int actor_speedy[NUM_ACTORS];
-void *actor_sprite[NUM_ACTORS];// Which sprite to show
+//void *actor_sprite[NUM_ACTORS];// Which sprite to show
+unsigned char actor_tile[NUM_ACTORS];
+unsigned char actor_variant[NUM_ACTORS];
+
 struct state actor_state[NUM_ACTORS];
 struct params actor_params[NUM_ACTORS]; // Todo: move to rom
 
@@ -2378,7 +2375,7 @@ void main(void) {
     a_params=actor_params;
     a_speed_x=actor_speedx;
     a_speed_y=actor_speedy;
-    a_sprite=actor_sprite;
+    //a_sprite=actor_sprite;
 
     // Actor State and intent physics
     for (i=0; i<NUM_ACTORS; i++) 
@@ -2857,90 +2854,83 @@ void main(void) {
         // Select sprite
         // TODO: deduplicate
         // todo: improve facing difection.
-        if(a_state->lives ==0)
+        // Compute variant once (palette = i, flip if facing left)
+        actor_variant[i] = (a_state->facing_dir == DIR_RIGHT) ? i : (i | 4);
+
+        if(a_state->lives == 0)
         {
-          *a_sprite=char1fast_fall_sprites[i]; // Use fast falling sprite for dead.
+            actor_tile[i] = CHAR1_FAST_FALL; // Use fast falling sprite for dead.
         }
         else if(a_state->current_action == ACTION_SPAWNING)
         {
-          *a_sprite=char1fast_fall_sprites[i]; // Use fast falling sprite for spawn. 
+            actor_tile[i] = CHAR1_FAST_FALL; // Use fast falling sprite for spawn.
         }
         else
-        {         
-          unsigned char sprite_var;
-          if(a_state->facing_dir == DIR_RIGHT)//right
-          {
-            sprite_var=i;
-          }
-          else
-          {
-            sprite_var=i+4;
-          }
-          // TODO: Implement LUT instead of a lot of ifs.
-          if(action_on_ground)
-          {
-            if(a_state->current_attack != ATTACK_NONE)
+        {
+            if(action_on_ground)
             {
-              *a_sprite = char1neutral_sprites[sprite_var];
-            }
-            else if(cur_action==ACTION_RUNNING_GROUND)
-            {
-              *a_sprite = char1run_sprites[sprite_var];
-            }
-            else if(cur_action==ACTION_CROUCHING_GROUND)
-            {
-              *a_sprite = char1crouch_sprites[sprite_var];
-            }
-            else if(cur_action==ACTION_STAND_BY_GROUND 
-                    || cur_action==ACTION_WALKING_GROUND)
-            {
-              if(a_state->on_edge)
-              {
-                *a_sprite = char1sway_sprites[sprite_var];
-              }
-              else
-              {
-                *a_sprite = char1stand_sprites[sprite_var];
-              }
-            }
-            else if(cur_action==ACTION_HANGING_GROUND)
-            {
-              *a_sprite = char1ledge_sprites[sprite_var];
-            }
-            else if(cur_action==ACTION_DASHING_GROUND)
-            {
-              *a_sprite = char1dash_sprites[sprite_var];
-            }
-            else if(cur_action==ACTION_HIT_STUN_GROUND)
-            {
-              *a_sprite = char1flinch_sprites[sprite_var];
+                if(a_state->current_attack != ATTACK_NONE)
+                {
+                    actor_tile[i] = CHAR1_NEUTRAL;
+                }
+                else if(cur_action==ACTION_RUNNING_GROUND)
+                {
+                    actor_tile[i] = CHAR1_RUN;
+                }
+                else if(cur_action==ACTION_CROUCHING_GROUND)
+                {
+                    actor_tile[i] = CHAR1_CROUCH;
+                }
+                else if(cur_action==ACTION_STAND_BY_GROUND 
+                        || cur_action==ACTION_WALKING_GROUND)
+                {
+                    if(a_state->on_edge)
+                    {
+                        actor_tile[i] = CHAR1_SWAY;
+                    }
+                    else
+                    {
+                        actor_tile[i] = CHAR1_STAND;
+                    }
+                }
+                else if(cur_action==ACTION_HANGING_GROUND)
+                {
+                    actor_tile[i] = CHAR1_LEDGE;
+                }
+                else if(cur_action==ACTION_DASHING_GROUND)
+                {
+                    actor_tile[i] = CHAR1_DASH;
+                }
+                else if(cur_action==ACTION_HIT_STUN_GROUND)
+                {
+                    actor_tile[i] = CHAR1_FLINCH;
+                }
+                else
+                {
+                    // Todo: handle jump crouch as part of animation instead of last case
+                    actor_tile[i] = CHAR1_CROUCH;
+                }
             }
             else
             {
-              // Todo: handle jump crouch as part of animation instead of last case
-              *a_sprite = char1crouch_sprites[sprite_var];
+                if(a_state->current_attack == ATTACK_AIR_NEUTRAL_LEFT
+                   || a_state->current_attack == ATTACK_AIR_NEUTRAL_RIGHT)
+                {
+                    actor_tile[i] = CHAR1_AIRNEUTRAL;
+                }
+                else if(actor_intent_fast_fall[i]) // Todo: use state instead of intent.
+                {
+                    actor_tile[i] = CHAR1_FAST_FALL;
+                }
+                else if(cur_action==ACTION_HIT_STUN_AIR)
+                {
+                    actor_tile[i] = CHAR1_FLINCH;
+                }
+                else
+                {
+                    actor_tile[i] = CHAR1_JUMP;
+                }
             }
-          }
-          else
-          {
-            if(a_state->current_attack == ATTACK_AIR_NEUTRAL_LEFT
-               || a_state->current_attack == ATTACK_AIR_NEUTRAL_RIGHT)
-            {
-              *a_sprite = char1airneutral_sprites[sprite_var];
-            }
-            else if(actor_intent_fast_fall[i]) // Todo: use state instead of intent.
-            {
-              *a_sprite = char1fast_fall_sprites[sprite_var];
-            }
-            else if(cur_action==ACTION_HIT_STUN_AIR)
-            {
-              *a_sprite = char1flinch_sprites[sprite_var];
-            }
-            else
-            {
-              *a_sprite = char1jump_sprites[sprite_var];
-            }
-          }
         }
       }
       {
@@ -3136,34 +3126,36 @@ void main(void) {
     
     // 15
     
-    // Update Actor Sprites
-    {
+  // Update Actor Sprites
+  {
       char parallax_offset;
       char parallax_offset2;
-      a_state=actor_state;
-      a_sprite=actor_sprite;
-      // start with OAMid/sprite 0
-      
+      a_state = actor_state;
+
       // draw and move all actors
-      for (i=0; i<NUM_ACTORS; i++) 
+      for (i = 0; i < NUM_ACTORS; i++) 
       {
-        zp_x=actor_x[i]-camera_offset_x;
-        if(a_state->lives!=0)
-        {
-          if(a_state->hit_lag_frames_left>0 && a_state->damage_vis_frames>0)
+          zp_x = actor_x[i] - camera_offset_x;
+          if (a_state->lives != 0)
           {
-            oam_id = oam_meta_spr((byte)(zp_x+hit_lag_random_shake[(clock+i<<2)&0x0f]), actor_y[i]+hit_lag_random_shake[(clock+13+i<<2)&0x0f], oam_id, *a_sprite);
+              if (a_state->hit_lag_frames_left > 0 && a_state->damage_vis_frames > 0)
+              {
+                  oam_id = oam_spr_2x2(
+                      (byte)(zp_x + hit_lag_random_shake[(clock + i << 2) & 0x0f]),
+                      actor_y[i] + hit_lag_random_shake[(clock + 13 + i << 2) & 0x0f],
+                      oam_id,
+                      actor_variant[i],
+                      actor_tile[i]
+                  );
+              }
+              else
+              {
+                  oam_id = oam_spr_2x2(zp_x, actor_y[i], oam_id, actor_variant[i], actor_tile[i]);
+              }
           }
-          else
-          {
-            oam_id = oam_meta_spr(zp_x, actor_y[i], oam_id, *a_sprite);
-          }
-        }
-        a_sprite++;
-        a_state++;
+          a_state++;
       }
-      a_state=actor_state;
-      
+      a_state = actor_state;
       
       // Scale parallax correctly
       if (camera_offset_x < 128) {
@@ -3299,7 +3291,7 @@ void main(void) {
       }
       clock=newclock;
 
-      //PPU.control=0b11000000;
+      PPU.control=0b11000000;
       PPU.control=(clock&0x01)?0b10000010:0b11000000;
       PPU.scroll=-scroll_nudge_x+0x00+(camera_offset_x)+((clock&0x01)<<3);
       PPU.scroll=0x02;
