@@ -18,18 +18,21 @@ for the nametable. We copy it from an array in ROM to video RAM.
 
 #include "avg8.h"
 
+#include "attrib_parallax.h"
+
 //#defi ne CFGFILE test
 
 // link the pattern table into CHR ROM
 //#link "chr_generic.s"
+//#link "attrib_parallax.c"
 
 // attribute table in PRG ROM
 const char ATTRIBUTE_TABLE[0x40] = {
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // rows 0-3
   0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, // rows 4-7
   0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, // rows 8-11
-  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, // rows 12-15
-  0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, // rows 16-19
+  0xff, 0xff, 0xff, 0xaa, 0xff, 0xff, 0xff, 0xff, // rows 12-15
+  0x00, 0x01, 0x0a, 0x01, 0x0f, 0x0f, 0x06, 0x07, // rows 16-19
   0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, // rows 20-23
   0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, // rows 24-27
   0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f  // rows 28-29
@@ -39,10 +42,10 @@ const char ATTRIBUTE_TABLE[0x40] = {
 const char PALETTE[33] = { 
   0x1C,			// screen color
 
-  0x0F,0x17,0x10,0x00,	// background palette 0
-  0x0F,0x07,0x2D,0x00,	// background palette 1
-  0x0F,0x13,0x10,0x00,	// background palette 2
-  0x0F,0x16,0x10,0x00,       // background palette 3
+  0x0F,0x02,0x10,0x00,	// background palette 0
+  0x0F,0x03,0x2D,0x00,	// background palette 1
+  0x0F,0x04,0x10,0x00,	// background palette 2
+  0x0F,0x18,0x10,0x00,       // background palette 3
     
   0x0D,0x17,0x32,0x00,	// sprite palette 0
   0x0D,0x17,0x27,0x00,	// sprite palette 1
@@ -51,7 +54,8 @@ const char PALETTE[33] = {
 
 };
 
-const char sky_default = 0x1C;
+//const char sky_default = 0x1C;
+const char sky_default = 0x13;
 
 const signed char hit_lag_random_shake[32] = 
 {
@@ -265,15 +269,46 @@ void p(byte type, byte x, byte y, byte len)
     int max=len>>1;
     for(i=0;i<max;++i)
     {
+      byte r=rand()%2;
       pos+=1+rand()%0x03;
       if(pos>len-1)pos-=len;
       vram_adr(NTADR_A(x+pos,y-1));
-      vram_fill(0x92+rand()%2, 1);
+      vram_fill(0x92+r, 1);
+      vram_adr(NTADR_C(x+pos+1,y-1));
+      vram_fill(0x92+r, 1);
     }
     // Ends
     vram_adr(NTADR_A(x,y));
     vram_fill(0x90+0x10, 1);
     vram_adr(NTADR_A(x+len-1,y));
+    vram_fill(0x90+0x11, 1);
+  }
+  
+  x=x+1;
+  
+  vram_adr(NTADR_C(x,y));
+  vram_fill(0x90+type, len);
+  vram_adr(NTADR_C(x+1,y+1));
+  vram_fill(0x05, 1);
+  vram_fill(0x09, len-4);
+  vram_fill(0x06, 1);
+  
+  if(type==0)
+  {
+    //int i;
+    int pos=0;
+    int max=len>>1;
+    //for(i=0;i<max;++i)
+    //{
+    //  pos+=1+rand()%0x03;
+    //  if(pos>len-1)pos-=len;
+    //  vram_adr(NTADR_C(x+pos,y-1));
+    //  vram_fill(0x92+rand()%2, 1);
+    //}
+    // Ends
+    vram_adr(NTADR_C(x,y));
+    vram_fill(0x90+0x10, 1);
+    vram_adr(NTADR_C(x+len-1,y));
     vram_fill(0x90+0x11, 1);
   }
 }
@@ -422,7 +457,7 @@ byte current_effect_index;
 
 // 2
 
-#define NUM_ACTORS 4
+#define NUM_ACTORS 3
 #define NUM_PLATFORMS 4
 
 byte actor_x[NUM_ACTORS];      // Position
@@ -551,17 +586,17 @@ void reset_level_and_bg()
 {
   char i;
   //set_rand(80);
-  set_rand(379);
-  
+  set_rand(293);
   for(i=0;i<19;++i)
   {
-    
-    vram_adr(NTADR_A(rand8()&0x1f,
-                     (rand8()&0x07)+8));
+    byte a=rand8()&0x1f;
+    byte b=(rand8()&0x07)+8;
+    vram_adr(NTADR_A(a,b));
+    vram_fill(0x94+2+(i&0b00000011), 1);
+    vram_adr(NTADR_C(a+1,b));
     vram_fill(0x94+2+(i&0b00000011), 1);
   }
-  set_rand(800);
-  
+
   
   // Draw bg fades
   vram_adr(NAMETABLE_A);
@@ -569,11 +604,23 @@ void reset_level_and_bg()
   vram_fill(0x05, 96);
   vram_adr(NTADR_A(0,22));
   vram_fill(0x07, 10);  // Bottom left 1
-  vram_fill(0x04, 12);  // Bottom center 1
+  vram_fill(0x04, 11+1);  // Bottom center 1
+  vram_fill(0x07, 9+1);   // Bottom right 1
+  vram_fill(0x08, 11-1-1);  // Bottom left 2
+  vram_fill(0x04, 12+2);  // Bottom center 2
+  vram_fill(0x08, 9);  // Bottom right 2
+  vram_fill(0x04, 32*1);// Bottom dark
+  
+  vram_adr(NAMETABLE_C);
+  vram_fill(0x04, 96); // Sky
+  vram_fill(0x05, 96);
+  vram_adr(NTADR_C(0,22));
+  vram_fill(0x07, 11);  // Bottom left 1
+  vram_fill(0x04, 11+1);  // Bottom center 1
   vram_fill(0x07, 9);   // Bottom right 1
-  vram_fill(0x08, 11);  // Bottom left 2
-  vram_fill(0x04, 12);  // Bottom center 2
-  vram_fill(0x08, 10);  // Bottom right 2
+  vram_fill(0x08, 11-1);  // Bottom left 2
+  vram_fill(0x04, 12+2);  // Bottom center 2
+  vram_fill(0x08, 9-1);  // Bottom right 2
   vram_fill(0x04, 32*1);// Bottom dark
   
   // reset platforms count
@@ -590,6 +637,10 @@ void reset_level_and_bg()
   vram_adr(0x23C0);
   // copy attribute table from PRG ROM to VRAM
   vram_write(ATTRIBUTE_TABLE, sizeof(ATTRIBUTE_TABLE));
+  vram_adr(0x2BC0);
+  // copy attribute table from PRG ROM to VRAM
+  vram_write(ATTRIBUTE_TABLE, sizeof(ATTRIBUTE_TABLE));
+
 
 }
 /*
@@ -1404,14 +1455,36 @@ void initialize_player(byte num, byte type, byte x, byte y)
 
 
 char clock=0;
+const byte* current_attrib;
 void __fastcall__ irq_nmi_callback(void) 
 {
-  vram_adr(NTADR_A(0,26));
-  __asm__("jsr %v",vram_line);
-  //vram_adr(NTADR_A(1,26));
-  vram_adr(NTADR_A(0,25));
-  __asm__("jsr %v",vram_line2);
-  //print_state(0,NTADR_A(1,27));
+  if(clock&0x01)
+  {
+    // copy attribute table from PRG ROM to VRAM
+    vram_adr(NTADR_A(0,26));
+    __asm__("jsr %v",vram_line);
+    //vram_adr(NTADR_A(1,26));
+    vram_adr(NTADR_A(0,25));
+    __asm__("jsr %v",vram_line2);
+    //print_state(0,NTADR_A(1,27));
+    vram_adr(0x23C0+5*8+2);
+    vram_write(current_attrib+3, 5);
+  }
+  else
+  {
+    // copy attribute table from PRG ROM to VRAM
+    vram_adr(NTADR_C(0,26)+1);
+    __asm__("jsr %v",vram_line);
+    //vram_adr(NTADR_A(1,26));
+    vram_adr(NTADR_C(0,25)+1);
+    __asm__("jsr %v",vram_line2);
+    //print_state(0,NTADR_A(1,27));
+    vram_adr(0x2BC0+5*8+2);
+    vram_write(current_attrib+3, 5);
+  }
+    
+    
+
 
 }
 
@@ -1483,6 +1556,9 @@ void main(void) {
   {
     vram_adr(NTADR_A(1,27));
     vram_write("Press START to join the game.", 30);
+    vram_adr(NTADR_C(1,27)+1);
+    vram_write("Press START to join the game.", 30);
+
   }
 
   nmi_set_callback(irq_nmi_callback);
@@ -2255,7 +2331,7 @@ void main(void) {
       case 3: x_avg_tmp = x_avg_tmp + (x_avg_tmp>>2) + (x_avg_tmp>>4); break;
       case 4: x_avg_tmp = x_avg_tmp; break;
     }
-    x_avg_tmp = (x_avg_tmp >> 2) - 32;
+    x_avg_tmp = ((x_avg_tmp >> 2)&0b11111111) - 32;
     // Clamp to ±16
     if (x_avg_tmp < 128) {
         // Positive side (0-31 range)
@@ -2264,18 +2340,20 @@ void main(void) {
         // Negative side (224-255 range, i.e. -32 to -1)
         if (x_avg_tmp < 240) x_avg_tmp = 240;  // 240 = -16 as byte
     }
-    if( clock % 0x01 == 0){
+    //if( (clock & 0x01) == 0)
+    {
       // Smooth toward target (byte subtraction handles direction)
       byte delta = x_avg_tmp - camera_offset_x;
 
       // Deadzone: only move if delta > 1 or delta < 255 (i.e., -1)
-      if (delta > 1 && delta < 128) {
+      if (delta > 0 && delta < 128) {
           camera_offset_x++;  // target is right
-      } else if (delta > 128 && delta < 255) {
+      } else if (delta > 128 && delta < (255-0)) {
           camera_offset_x--;  // target is left (delta is "negative")
       }
-
     }
+    current_attrib = get_attrib_ptr(camera_offset_x);
+
     
     // 12
     
@@ -3181,7 +3259,7 @@ void main(void) {
     // detect frame drops
     {
       PPU.mask =0x0;
-
+ 
       newclock = nesclock();
       if(newclock-clock>1)
       {
@@ -3212,8 +3290,9 @@ void main(void) {
       }
       clock=newclock;
 
-      PPU.control=0b11000000;
-      PPU.scroll=-scroll_nudge_x+0x00+camera_offset_x;
+      //PPU.control=0b11000000;
+      PPU.control=(clock&0x01)?0b10000010:0b11000000;
+      PPU.scroll=-scroll_nudge_x+0x00+(camera_offset_x)+((clock&0x01)<<3);
       PPU.scroll=0x02;
       PPU.mask =0b00011110;
     }
