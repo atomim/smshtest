@@ -32,10 +32,10 @@ const byte* get_attrib_ptr(char camera_offset_x) {
     
     byte table_idx;
     
-    char offset = (byte)(nesclock() & 0x03)<<0;
+    //char offset = (byte)(nesclock() & 0x03)<<0;
     
     // Convert offset to index (using fixed-point division by 8)
-    table_idx = ((byte)((15+camera_offset_x)>>0+offset*0) >> 2);  // >> 3 = divide by 8
+    table_idx = ((byte)((15+camera_offset_x)>>0) >> 2);  // >> 3 = divide by 8
   
   
     // Double-check bounds (paranoid, but safe)

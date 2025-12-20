@@ -20,11 +20,16 @@ for the nametable. We copy it from an array in ROM to video RAM.
 
 #include "attrib_parallax.h"
 
+#include "oam_ultra.h"
+
+
 //#defi ne CFGFILE test
 
 // link the pattern table into CHR ROM
 //#link "chr_generic.s"
 //#link "attrib_parallax.c"
+//#link "oam_ultra.s"
+
 
 // attribute table in PRG ROM
 const char ATTRIBUTE_TABLE[0x40] = {
@@ -225,14 +230,26 @@ const unsigned char name[]={\
 // *
 
 // 1
-DEF_METASPRITE_2x2_VARS(AIicon,0xc8);
-DEF_METASPRITE_2x2_VARS(char1icon,0xd0);
 
-DEF_METASPRITE_1x1_VARS(char1lives4,0x8c);
-DEF_METASPRITE_1x1_VARS(char1lives3,0x8d);
-DEF_METASPRITE_1x1_VARS(char1lives2,0x8e);
-DEF_METASPRITE_1x1_VARS(char1lives1,0x8f);
-DEF_METASPRITE_1x1_VARS(char1lives0,0x8b);
+
+
+
+// Replace sprites with oam_ultra
+//DEF_METASPRITE_2x2_VARS(AIicon,0xc8);
+//DEF_METASPRITE_2x2_VARS(char1icon,0xd0);
+#define AI_ICON 0xc8
+#define CHAR1_ICON 0xd0
+
+//DEF_METASPRITE_1x1_VARS(char1lives4,0x8c);
+//DEF_METASPRITE_1x1_VARS(char1lives3,0x8d);
+//DEF_METASPRITE_1x1_VARS(char1lives2,0x8e);
+//DEF_METASPRITE_1x1_VARS(char1lives1,0x8f);
+//DEF_METASPRITE_1x1_VARS(char1lives0,0x8b);
+#define LIVES0 0x8b
+#define LIVES1 0x8f
+#define LIVES2 0x8e
+#define LIVES3 0x8d
+#define LIVES4 0x8c
 
 DEF_METASPRITE_2x2_VARS(char1neutral,0xd4);
 DEF_METASPRITE_2x2_VARS(char1stand,0xd8);
@@ -457,7 +474,7 @@ byte current_effect_index;
 
 // 2
 
-#define NUM_ACTORS 3
+#define NUM_ACTORS 4
 #define NUM_PLATFORMS 4
 
 byte actor_x[NUM_ACTORS];      // Position
@@ -501,8 +518,6 @@ struct effect* current_effect;
 short int* a_speed_x;
 short int* a_speed_y;
 void ** a_sprite;
-void ** a_icon;
-void ** a_iconAI;
 byte zp_x;
 byte zp_y;
 struct intent* intentlookup[NUM_ACTORS];
@@ -3149,8 +3164,6 @@ void main(void) {
       }
       a_state=actor_state;
       
-      a_icon=char1icon_sprites;
-      a_iconAI=AIicon_sprites;
       
       // Scale parallax correctly
       if (camera_offset_x < 128) {
@@ -3166,21 +3179,19 @@ void main(void) {
 
       for (i=0; i<NUM_ACTORS; i++) 
       {
-        const unsigned char* curIcon;
-          
+        zp_x=icon_pos_x[i]-camera_offset_x;
+        
         if(a_state->isAI)
         {
-          curIcon=*a_iconAI;
+          oam_id = oam_spr_2x2(zp_x-parallax_offset2+(a_state->damage_vis_frames>>2), 189-(a_state->damage_vis_frames),oam_id, SPR_VARIANT(i,0), AI_ICON);
+
         }
         else
         {
-          curIcon=*a_icon;
-        }
-        
+          oam_id = oam_spr_2x2(zp_x-parallax_offset2+(a_state->damage_vis_frames>>2), 189-(a_state->damage_vis_frames),oam_id, SPR_VARIANT(i,0), CHAR1_ICON);
 
-        zp_x=icon_pos_x[i]-camera_offset_x;
-        oam_id = oam_meta_spr(zp_x-parallax_offset2+(a_state->damage_vis_frames>>2), 189-(a_state->damage_vis_frames), oam_id, curIcon);
-        
+        }
+
         // move hearts on "behind" parallax plane and offset.
         zp_x+=parallax_offset+11+2;
         
@@ -3190,24 +3201,22 @@ void main(void) {
           switch(a_state->lives)
           {
             case 0:
-              oam_id = oam_meta_spr(zp_x, 204, oam_id, char1lives0_sprites[i]);
+              oam_id = oam_spr_1x1(zp_x, 204, oam_id,SPR_VARIANT(i,0),LIVES0);
               break;
             case 1:
-              oam_id = oam_meta_spr(zp_x, 204, oam_id, char1lives1_sprites[i]);
+              oam_id = oam_spr_1x1(zp_x, 204, oam_id,SPR_VARIANT(i,0),LIVES1);
               break;
             case 2:
-              oam_id = oam_meta_spr(zp_x, 204, oam_id, char1lives2_sprites[i]);
+              oam_id = oam_spr_1x1(zp_x, 204, oam_id,SPR_VARIANT(i,0),LIVES2);
               break;
             case 3:
-              oam_id = oam_meta_spr(zp_x, 204, oam_id, char1lives3_sprites[i]);
+              oam_id = oam_spr_1x1(zp_x, 204, oam_id,SPR_VARIANT(i,0),LIVES3);
               break;
             case 4:
-              oam_id = oam_meta_spr(zp_x, 204, oam_id, char1lives4_sprites[i]);
+              oam_id = oam_spr_1x1(zp_x, 204, oam_id,SPR_VARIANT(i,0),LIVES4);
               break;
           }
         }
-        a_icon++;
-        a_iconAI++;
         a_state++;
       }
       // hide rest of sprites
